@@ -48,6 +48,12 @@ export function startCountdown(el, remainingMs) {
   timers.set(el, setInterval(tick, 100));
 }
 
+// "Up next: Dr. Null (Professors), Byte Me (Students)", or "" when nobody is waiting.
+export function upNextText(view) {
+  if (!view.upNext.length) return "";
+  return "Up next: " + view.upNext.map((t) => `${t.name} (${SIDE_NAMES[t.side]})`).join(", ");
+}
+
 // Fills a list element with "name — score" rows for some teams.
 export function renderTeamList(listEl, teams, emptyText = "No teams yet") {
   listEl.replaceChildren();

@@ -61,13 +61,20 @@ socket.on("state", (view) => {
 
   const myPlace = view.buzzes.findIndex((b) => b.teamId === me.id);
   const iHaveFloor = view.floorTeam?.id === me.id;
-  $("#buzz").disabled = !(phase === "open" || phase === "answering") || myPlace >= 0;
+  const iTried = view.attempted.some((t) => t.id === me.id);
+  // Teams can still buzz while someone is answering, to claim a better place in the steal order.
+  $("#buzz").disabled = !(phase === "open" || phase === "answering") || myPlace >= 0 || iHaveFloor || iTried;
   startCountdown($("#countdown"), iHaveFloor ? view.answerRemainingMs : null);
 
   let status = "";
   if (iHaveFloor) status = "You have the floor! Answer out loud.";
   else if (view.floorTeam) status = `${view.floorTeam.name} is answering`;
-  if (myPlace > 0 && !iHaveFloor) status += ` · you buzzed #${myPlace + 1}`;
+  const lineIndex = view.upNext.findIndex((t) => t.id === me.id);
+  if (!iHaveFloor && phase === "answering") {
+    if (iTried) status += " · you've already answered";
+    else if (lineIndex === 0) status += " · you're NEXT if they miss";
+    else if (lineIndex > 0) status += ` · you're #${lineIndex + 1} in line`;
+  }
   if (phase === "revealed") {
     status = view.result.winner?.id === me.id ? `Correct! +${view.result.points}`
       : view.result.winner ? `${view.result.winner.name} got it`

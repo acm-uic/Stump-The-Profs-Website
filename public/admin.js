@@ -1,4 +1,4 @@
-import { connect, PHASE_LABELS, SIDE_NAMES, answerText, renderQuestion, startCountdown } from "/common.js";
+import { connect, PHASE_LABELS, SIDE_NAMES, answerText, renderQuestion, startCountdown, upNextText } from "/common.js";
 
 const socket = connect();
 const $ = (selector) => document.querySelector(selector);
@@ -39,6 +39,9 @@ socket.on("state", (view) => {
 
   $("#floor").textContent = view.floorTeam
     ? `${view.floorTeam.name} (${SIDE_NAMES[view.floorTeam.side]}) has the floor`
+    : "";
+  $("#up-next").textContent = view.phase === "answering"
+    ? upNextText(view) || "Nobody left after this team: Wrong will end the question"
     : "";
   $("#result").textContent = view.result
     ? view.result.winner ? `${view.result.winner.name} got it: +${view.result.points}` : "Nobody got it"

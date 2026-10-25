@@ -4,7 +4,7 @@
 // Views only copy; they never change the state.
 
 import { ANSWER_SECONDS } from "./config.js";
-import { currentQuestion } from "./game.js";
+import { currentQuestion, upNext } from "./game.js";
 import { pointsFor } from "./scoring.js";
 
 function questionFor(state, includeAnswer) {
@@ -38,6 +38,8 @@ export function publicView(state, now) {
       ms: at - current.openedAt,
     })),
     floorTeam: answering ? teamSummary(state.teams[current.activeTeamId]) : null,
+    upNext: answering ? upNext(state).map((id) => teamSummary(state.teams[id])) : [],
+    attempted: current.attempted.map((id) => teamSummary(state.teams[id])),
     answerTotalMs: ANSWER_SECONDS * 1000,
     answerRemainingMs: answering
       ? Math.max(0, current.answeringSince + ANSWER_SECONDS * 1000 - now)

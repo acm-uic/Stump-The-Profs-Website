@@ -1,7 +1,7 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import {
-  createGame, registerTeam, rejoinTeam, showQuestion, openBuzzers, buzz, judge, reveal,
+  createGame, registerTeam, rejoinTeam, showQuestion, openBuzzers, buzz, judge, reveal, upNext,
 } from "../game.js";
 
 const QUESTIONS = [
@@ -115,16 +115,73 @@ test("a correct answer scores 300, 200 and 100 for free, mc and tf", () => {
   assert.equal(a.stats.correct, 3);
 });
 
-test("a wrong answer scores nothing and (until Chunk 4) ends the question", () => {
-  const { state, a } = gameWithTeams();
+test("a wrong answer passes the floor to the other side and restarts the clock", () => {
+  const { state, a, b } = gameWithTeams();
   showQuestion(state);
   openBuzzers(state, 1000);
   buzz(state, a.id, 1100);
-  judge(state, false, 1200);
+  judge(state, false, 5000);
   assert.equal(a.score, 0);
   assert.equal(a.stats.wrong, 1);
+  assert.equal(state.phase, "answering");
+  assert.equal(state.current.activeTeamId, b.id);
+  assert.equal(state.current.answeringSince, 5000);
+});
+
+test("wrong, wrong, right: the third team scores and it counts as a steal", () => {
+  const state = createGame(structuredClone(QUESTIONS));
+  const s1 = registerTeam(state, { name: "S1", side: "student" }).team;
+  const s2 = registerTeam(state, { name: "S2", side: "student" }).team;
+  const p1 = registerTeam(state, { name: "P1", side: "prof" }).team;
+  showQuestion(state);
+  openBuzzers(state, 1000);
+  buzz(state, s1.id, 1100);
+  judge(state, false, 2000); // S1 wrong -> P1
+  assert.equal(state.current.activeTeamId, p1.id);
+  judge(state, false, 3000); // P1 wrong -> S2 (profs have nobody left)
+  assert.equal(state.current.activeTeamId, s2.id);
+  judge(state, true, 4000);
+  assert.equal(s2.score, 300);
+  assert.equal(s2.stats.steals, 1);
+  assert.equal(s1.stats.wrong, 1);
+  assert.equal(p1.stats.wrong, 1);
+  assert.equal(state.phase, "revealed");
+  assert.equal(state.current.winnerTeamId, s2.id);
+});
+
+test("with 3 and 3 teams, five wrongs visit all six teams alternating sides; the sixth reveals", () => {
+  const state = createGame(structuredClone(QUESTIONS));
+  const ids = ["S1", "S2", "S3", "P1", "P2", "P3"].map(
+    (name) => registerTeam(state, { name, side: name[0] === "S" ? "student" : "prof" }).team.id,
+  );
+  showQuestion(state);
+  openBuzzers(state, 1000);
+  buzz(state, ids[1], 1100); // S2 first
+  buzz(state, ids[5], 1200); // P3 second
+  const visited = [state.current.activeTeamId];
+  for (let i = 0; i < 5; i++) {
+    judge(state, false, 2000 + i);
+    visited.push(state.current.activeTeamId);
+  }
+  const names = visited.map((id) => state.teams[id].name);
+  assert.deepEqual(names, ["S2", "P3", "S1", "P1", "S3", "P2"]);
+  judge(state, false, 3000);
   assert.equal(state.phase, "revealed");
   assert.equal(state.current.winnerTeamId, null);
+  assert.equal(state.current.attempted.length, 6);
+});
+
+test("upNext lists who is waiting, and updates when a late team buzzes", () => {
+  const state = createGame(structuredClone(QUESTIONS));
+  const s1 = registerTeam(state, { name: "S1", side: "student" }).team;
+  const p1 = registerTeam(state, { name: "P1", side: "prof" }).team;
+  const p2 = registerTeam(state, { name: "P2", side: "prof" }).team;
+  showQuestion(state);
+  openBuzzers(state, 1000);
+  buzz(state, s1.id, 1100);
+  assert.deepEqual(upNext(state), [p1.id, p2.id]);
+  buzz(state, p2.id, 1500); // P2 buzzes late and jumps ahead of P1
+  assert.deepEqual(upNext(state), [p2.id, p1.id]);
 });
 
 test("actions in the wrong phase are refused", () => {

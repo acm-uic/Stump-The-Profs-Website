@@ -8,6 +8,7 @@
 // Every action first checks it is allowed in the current phase.
 
 import { pointsFor } from "./scoring.js";
+import { stealOrder } from "./turns.js";
 
 const SIDES = ["student", "prof"];
 const CODE_ALPHABET = "ABCDEFGHJKLMNPQRSTUVWXYZ23456789"; // no O/0, I/1 look-alikes
@@ -114,7 +115,7 @@ export function buzz(state, teamId, now) {
 
   current.buzzes.push({ teamId, at: now });
 
-  // The first buzz wins the floor. Later buzzes still count: Chunk 4's steal order uses them.
+  // The first buzz wins the floor. Later buzzes still count: the steal order uses them.
   if (current.activeTeamId === null) {
     current.activeTeamId = teamId;
     current.answeringSince = now;
@@ -131,32 +132,53 @@ export function judge(state, correct, now) {
 
   const current = state.current;
   const team = state.teams[current.activeTeamId];
+  const isSteal = current.attempted.length > 0;
   current.attempted.push(team.id);
 
   if (correct) {
     const points = pointsFor(currentQuestion(state));
     team.score += points;
     team.stats.correct += 1;
+    if (isSteal) team.stats.steals += 1;
     current.winnerTeamId = team.id;
     current.pointsAwarded = points;
-  } else {
-    team.stats.wrong += 1;
-    // Chunk 4: pass the floor to the next team in the steal order instead of ending.
+    endQuestion(state);
+    return { ok: true };
   }
-  current.activeTeamId = null;
-  current.answeringSince = null;
-  state.phase = "revealed";
+
+  team.stats.wrong += 1;
+  const next = upNext(state)[0];
+  if (next) {
+    // Pass the floor to the next team in the steal order, with a fresh answer clock.
+    current.activeTeamId = next;
+    current.answeringSince = now;
+  } else {
+    endQuestion(state); // every team has tried
+  }
   return { ok: true };
+}
+
+// Who would get the floor next, in order, if the current team is wrong.
+export function upNext(state) {
+  const current = state.current;
+  const tried = current.activeTeamId ? [...current.attempted, current.activeTeamId] : current.attempted;
+  const order = stealOrder(Object.values(state.teams), current.buzzes, tried);
+  return order.filter((id) => !tried.includes(id));
 }
 
 export function reveal(state) {
   if (state.phase !== "open" && state.phase !== "answering") {
     return { ok: false, error: "Nothing to reveal right now" };
   }
+  endQuestion(state);
+  return { ok: true };
+}
+
+// Everything that happens when a question ends, whichever way it ended.
+function endQuestion(state) {
   state.current.activeTeamId = null;
   state.current.answeringSince = null;
   state.phase = "revealed";
-  return { ok: true };
 }
 
 // ---- Helpers --------------------------------------------------------------

@@ -1,4 +1,4 @@
-import { connect, PHASE_LABELS, answerText, renderQuestion, renderTeamList, startCountdown } from "/common.js";
+import { connect, PHASE_LABELS, answerText, renderQuestion, renderTeamList, startCountdown, upNextText } from "/common.js";
 
 const socket = connect();
 const $ = (selector) => document.querySelector(selector);
@@ -27,6 +27,7 @@ socket.on("state", (view) => {
 
   $("#floor").textContent = view.floorTeam ? `${view.floorTeam.name} is answering` : "";
   startCountdown($("#countdown"), view.answerRemainingMs);
+  $("#up-next").textContent = upNextText(view);
 
   $("#buzzes").replaceChildren(...view.buzzes.map((b, i) => {
     const li = document.createElement("li");

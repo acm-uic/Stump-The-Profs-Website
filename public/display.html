@@ -1,0 +1,27 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Display · Stump the Profs</title>
+  <style>
+    body { font-family: system-ui, sans-serif; max-width: 40rem; margin: 2rem auto; padding: 0 1rem; }
+    #connection { font-size: 0.9rem; color: #666; }
+    ol { font-size: 2rem; padding-left: 2.5rem; }
+    li:first-child { font-weight: bold; color: #d62828; }
+    .gap { color: #888; font-size: 1.25rem; margin-left: 0.5rem; }
+    #empty { color: #888; font-size: 1.25rem; }
+  </style>
+</head>
+<body>
+  <h1>Who buzzed first?</h1>
+  <p id="connection">Connecting…</p>
+  <ol id="buzzes"></ol>
+  <p id="empty">No buzzes yet.</p>
+  <!-- Temporary: removed when the admin page takes over (Chunk 7). -->
+  <button id="reset">Reset</button>
+
+  <script src="/socket.io/socket.io.js"></script>
+  <script type="module" src="/display.js"></script>
+</body>
+</html>

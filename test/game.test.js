@@ -2,7 +2,7 @@ import { test } from "node:test";
 import assert from "node:assert/strict";
 import {
   createGame, registerTeam, rejoinTeam, showQuestion, openBuzzers, buzz, judge, reveal, upNext,
-  lockIn, markLockIn,
+  lockIn, markLockIn, adjustScore, kickTeam, toggleRegistration,
 } from "../game.js";
 import { joinCrowd, predict, pick } from "../crowd.js";
 
@@ -318,4 +318,38 @@ test("ending a question settles the crowd, and showing the next one clears it", 
   assert.equal(crowd.spectators[ben].score, 0);
   showQuestion(state);
   assert.deepEqual(crowd.predictions, {});
+});
+
+// ---- Host fixes ---------------------------------------------------------------
+
+test("adjustScore adds or removes whole points, refusing typos and unknown teams", () => {
+  const { state, a } = gameWithTeams();
+  assert.equal(adjustScore(state, a.id, 200).ok, true);
+  assert.equal(adjustScore(state, a.id, -50).ok, true);
+  assert.equal(a.score, 150);
+  assert.equal(adjustScore(state, a.id, 2.5).ok, false);
+  assert.equal(adjustScore(state, a.id, "100").ok, false);
+  assert.equal(adjustScore(state, a.id, 0).ok, false);
+  assert.equal(adjustScore(state, a.id, 5000).ok, false);
+  assert.equal(adjustScore(state, "t99", 100).ok, false);
+  assert.equal(a.score, 150);
+});
+
+test("kickTeam removes a team between questions, but not mid-question", () => {
+  const { state, a, b } = gameWithTeams();
+  showQuestion(state);
+  openBuzzers(state, 1000);
+  assert.equal(kickTeam(state, b.id).ok, false);
+  reveal(state);
+  assert.equal(kickTeam(state, b.id).ok, true);
+  assert.equal(state.teams[b.id], undefined);
+  assert.ok(state.teams[a.id]);
+});
+
+test("toggleRegistration closes and reopens sign-ups", () => {
+  const { state } = gameWithTeams();
+  assert.equal(toggleRegistration(state).open, false);
+  assert.equal(registerTeam(state, { name: "Late", side: "prof" }).ok, false);
+  toggleRegistration(state);
+  assert.equal(registerTeam(state, { name: "Late", side: "prof" }).ok, true);
 });

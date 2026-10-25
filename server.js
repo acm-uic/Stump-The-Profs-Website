@@ -2,18 +2,29 @@ import express from "express";
 import fs from "node:fs";
 import path from "node:path";
 import os from "node:os";
+import crypto from "node:crypto";
 import { createServer } from "node:http";
 import { Server } from "socket.io";
 import {
   createGame, registerTeam, rejoinTeam, showQuestion, openBuzzers, buzz, judge, reveal,
-  lockIn, markLockIn,
+  lockIn, markLockIn, adjustScore, kickTeam, toggleRegistration,
 } from "./game.js";
-import { loadQuestions } from "./store.js";
+import { loadQuestions, saveState, loadState } from "./store.js";
 import { joinCrowd, rejoinCrowd, predict, pick, meView, createMeter, cheer, decayCheer } from "./crowd.js";
-import { CHEER_TICK_MS, CHEER_MIN_GAP_MS } from "./config.js";
+import {
+  CHEER_TICK_MS, CHEER_MIN_GAP_MS, PORT, ADMIN_KEY, SAVE_PATH, PUBLIC_URL, UNDO_LIMIT,
+} from "./config.js";
 import { publicView, teamView, adminView } from "./views.js";
 
-const PORT = Number(process.env.PORT ?? 3000);
+// ---- Startup checks: fail fast, with instructions ----
+
+if (!ADMIN_KEY) {
+  console.error("ADMIN_KEY is not set. Copy .env.example to .env and put a long phrase after ADMIN_KEY=,");
+  console.error("or start with:  ADMIN_KEY=your-phrase npm start");
+  process.exit(1);
+}
+
+const savePath = path.resolve(import.meta.dirname, SAVE_PATH);
 
 function lanAddresses() {
   return Object.values(os.networkInterfaces())
@@ -24,15 +35,34 @@ function lanAddresses() {
 
 // The address shown on the projector. On the cluster, PUBLIC_URL is the https address;
 // on a laptop it falls back to this laptop's Wi-Fi address.
-const joinUrl = process.env.PUBLIC_URL ?? `http://${lanAddresses()[0] ?? "localhost"}:${PORT}`;
+const joinUrl = PUBLIC_URL ?? `http://${lanAddresses()[0] ?? "localhost"}:${PORT}`;
+
+// ---- The game: restored from the last save, or new ----
 
 // Real questions live in data/, which git ignores, so the answers never reach GitHub.
 // Without that file, the harmless sample questions are used for development.
-const realQuestions = path.join(import.meta.dirname, "data", "questions.json");
-const sampleQuestions = path.join(import.meta.dirname, "questions.sample.json");
-const questionsPath = fs.existsSync(realQuestions) ? realQuestions : sampleQuestions;
-const questions = loadQuestions(questionsPath); // stops the server with a clear message if broken
-console.log(`Loaded ${questions.length} questions from ${path.relative(import.meta.dirname, questionsPath)}`);
+function loadQuestionFile() {
+  const realQuestions = path.join(import.meta.dirname, "data", "questions.json");
+  const sampleQuestions = path.join(import.meta.dirname, "questions.sample.json");
+  const questionsPath = fs.existsSync(realQuestions) ? realQuestions : sampleQuestions;
+  const questions = loadQuestions(questionsPath); // stops the server with a clear message if broken
+  console.log(`Loaded ${questions.length} questions from ${path.relative(import.meta.dirname, questionsPath)}`);
+  return questions;
+}
+
+let state = loadState(savePath);
+if (state) {
+  console.log(`Restored the saved game from ${path.relative(import.meta.dirname, savePath)}: ` +
+    `${Object.keys(state.teams).length} teams, question ${state.questionIndex + 1} of ${state.questions.length}, phase ${state.phase}`);
+} else {
+  state = createGame(loadQuestionFile());
+}
+
+// Undo: a deep copy of the game is taken before each admin action. Kept in memory
+// only: it is for mis-clicks, not for restarts.
+const undoStack = [];
+
+// ---- Web server and sockets ----
 
 const app = express();
 app.use(express.static(path.join(import.meta.dirname, "public")));
@@ -40,20 +70,23 @@ app.use(express.static(path.join(import.meta.dirname, "public")));
 const httpServer = createServer(app);
 const io = new Server(httpServer);
 
-const state = createGame(questions);
-
-// Send each audience its own view: the projector and spectators get the public
-// view, each team gets its own team view, and the admin gets everything.
+// Send each audience its own view, and save. Every change ends here, so saving
+// here means a change can never be forgotten.
 function broadcast() {
   const now = Date.now();
   io.to("display").emit("state", displayView(now));
-  io.to("admin").emit("state", adminView(state, now));
+  io.to("admin").emit("state", { ...adminView(state, now), undoCount: undoStack.length });
   for (const teamId of Object.keys(state.teams)) {
     io.to(`team:${teamId}`).emit("state", teamView(state, teamId, now));
   }
   // Each spectator's phone also gets its own score, rank and choices.
   for (const id of Object.keys(state.crowd.spectators)) {
     io.to(`spectator:${id}`).emit("crowd:me", meView(state.crowd, id, state.phase));
+  }
+  try {
+    saveState(state, savePath);
+  } catch (error) {
+    console.error(`WARNING: could not save the game: ${error.message}`);
   }
 }
 
@@ -100,6 +133,14 @@ function joinTeamRoom(socket, team) {
   socket.emit("state", teamView(state, team.id, Date.now()));
 }
 
+// Compares the typed key with ADMIN_KEY without leaking, through timing, how many
+// characters matched.
+function isAdminKey(key) {
+  if (typeof key !== "string") return false;
+  const digest = (text) => crypto.createHash("sha256").update(text).digest();
+  return crypto.timingSafeEqual(digest(key), digest(ADMIN_KEY));
+}
+
 // Each admin action names a game function. `now` is the server's clock.
 const adminActions = {
   show: (action) => showQuestion(state, action.index),
@@ -107,6 +148,21 @@ const adminActions = {
   judge: (action, now) => judge(state, action.correct, now),
   reveal: () => reveal(state),
   markLockIn: (action) => markLockIn(state, action.teamId, action.correct),
+  adjust: (action) => adjustScore(state, action.teamId, action.delta),
+  kick: (action) => {
+    const result = kickTeam(state, action.teamId);
+    if (result.ok) {
+      io.to(`team:${action.teamId}`).emit("team:kicked");
+      io.in(`team:${action.teamId}`).socketsLeave(`team:${action.teamId}`);
+    }
+    return result;
+  },
+  toggleRegistration: () => toggleRegistration(state),
+  reset: () => {
+    state = createGame(state.questions);
+    io.emit("game:reset"); // every page forgets its saved team code or spectator id
+    return { ok: true };
+  },
 };
 
 const reply = (callback, result) => {
@@ -120,23 +176,39 @@ io.on("connection", (socket) => {
     socket.emit("cheer", { student: Math.round(meter.student), prof: Math.round(meter.prof) });
   });
 
-  // Chunk 9 adds the admin key check here. Until then, anyone can open the admin page.
-  socket.on("admin:auth", (_details, callback) => {
+  // ---- Admin ----
+
+  socket.on("admin:auth", (details, callback) => {
+    if (!isAdminKey(details?.key)) return reply(callback, { ok: false, error: "Wrong key" });
     socket.join("admin");
     socket.data.isAdmin = true;
     reply(callback, { ok: true });
-    socket.emit("state", adminView(state, Date.now()));
+    socket.emit("state", { ...adminView(state, Date.now()), undoCount: undoStack.length });
   });
 
   socket.on("admin:action", (action, callback) => {
     if (!socket.data.isAdmin) return reply(callback, { ok: false, error: "Not an admin" });
-    if (typeof action !== "object" || action === null || !Object.hasOwn(adminActions, action.type)) {
-      return reply(callback, { ok: false, error: "Unknown action" });
+    if (typeof action !== "object" || action === null) return reply(callback, { ok: false, error: "Unknown action" });
+
+    if (action.type === "undo") {
+      const previous = undoStack.pop();
+      if (!previous) return reply(callback, { ok: false, error: "Nothing to undo" });
+      state = previous;
+      reply(callback, { ok: true });
+      return broadcast();
     }
+
+    if (!Object.hasOwn(adminActions, action.type)) return reply(callback, { ok: false, error: "Unknown action" });
+    undoStack.push(structuredClone(state)); // a frozen copy of the game before this action
+    if (undoStack.length > UNDO_LIMIT) undoStack.shift();
+
     const result = adminActions[action.type](action, Date.now());
+    if (!result.ok) undoStack.pop(); // nothing changed, so nothing to undo
     reply(callback, result.ok ? { ok: true } : { ok: false, error: result.error });
     if (result.ok) broadcast();
   });
+
+  // ---- Teams ----
 
   socket.on("team:register", (details, callback) => {
     const result = registerTeam(state, details ?? {});
@@ -158,6 +230,12 @@ io.on("connection", (socket) => {
     if (!socket.data.teamId) return reply(callback, { ok: false, error: "Join a team first" });
     const result = lockIn(state, socket.data.teamId, details?.answer);
     reply(callback, result.ok ? { ok: true } : { ok: false, error: result.error });
+    if (result.ok) broadcast();
+  });
+
+  socket.on("team:buzz", () => {
+    if (!socket.data.teamId) return;
+    const result = buzz(state, socket.data.teamId, Date.now());
     if (result.ok) broadcast();
   });
 
@@ -196,15 +274,10 @@ io.on("connection", (socket) => {
     socket.data.lastCheerAt = now;
     cheer(meter, details?.side);
   });
-
-  socket.on("team:buzz", () => {
-    if (!socket.data.teamId) return;
-    const result = buzz(state, socket.data.teamId, Date.now());
-    if (result.ok) broadcast();
-  });
 });
 
 httpServer.listen(PORT, "0.0.0.0", () => {
   console.log(`Listening on http://localhost:${PORT}`);
   console.log(`Join address shown on the projector: ${joinUrl}`);
+  console.log(`Saving the game to ${path.relative(import.meta.dirname, savePath)}`);
 });

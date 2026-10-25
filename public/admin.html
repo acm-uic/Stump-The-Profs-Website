@@ -6,12 +6,13 @@
   <title>Admin · Stump the Profs</title>
   <link rel="stylesheet" href="/style.css">
   <style>
-    body { max-width: 60rem; }
-    .layout { display: grid; grid-template-columns: 2fr 1fr; gap: 2rem; }
+    body { max-width: 64rem; }
+    .layout { display: grid; grid-template-columns: 2fr 1.2fr; gap: 2rem; }
     @media (max-width: 760px) { .layout { grid-template-columns: 1fr; } }
     .controls { display: flex; flex-wrap: wrap; gap: 0.5rem; margin: 1rem 0; }
-    .controls button { font-size: 1.05rem; padding: 0.6rem 1rem; border-radius: 0.4rem; border: 1px solid #999; background: #f7f7f7; cursor: pointer; }
-    .controls button:disabled { opacity: 0.35; cursor: not-allowed; }
+    .controls button, .tools button { font-size: 1.05rem; padding: 0.6rem 1rem; border-radius: 0.4rem; border: 1px solid #999; background: #f7f7f7; cursor: pointer; }
+    .controls button:disabled, .tools button:disabled { opacity: 0.35; cursor: not-allowed; }
+    .controls kbd, .tools kbd { font-size: 0.7em; opacity: 0.6; margin-left: 0.3rem; }
     #correct:not(:disabled) { background: #2a9d4b; color: #fff; border-color: #2a9d4b; }
     #wrong:not(:disabled) { background: #d62828; color: #fff; border-color: #d62828; }
     #message { min-height: 1.5em; color: #d62828; }
@@ -21,13 +22,31 @@
     #question-list li.current { font-weight: bold; }
     #lockins button { margin-left: 0.25rem; }
     .mark-right { color: #2a9d4b; } .mark-wrong { color: #d62828; } .mark-pending { color: #b07d00; }
+    .tools { display: flex; flex-wrap: wrap; gap: 0.5rem; margin-bottom: 1rem; }
+    #reset { border-color: #d62828; color: #d62828; }
+    .team-row { display: grid; grid-template-columns: 1fr auto; gap: 0.25rem 0.5rem; padding: 0.4rem 0; border-bottom: 1px solid #eee; }
+    .team-row .actions { grid-column: 1 / -1; display: flex; gap: 0.3rem; }
+    .team-row input { width: 5.5rem; font-size: 0.95rem; padding: 0.2rem 0.3rem; }
+    .team-row button { font-size: 0.85rem; padding: 0.2rem 0.5rem; }
+    .team-row .kick { margin-left: auto; color: #d62828; }
+    #login { max-width: 24rem; margin: 4rem auto; text-align: center; }
+    #login input { font-size: 1.1rem; padding: 0.5rem; width: 100%; box-sizing: border-box; margin: 0.5rem 0; }
+    #login button { font-size: 1.1rem; padding: 0.5rem 1.5rem; }
+    #login-error { color: #d62828; min-height: 1.5em; }
   </style>
 </head>
 <body>
   <h1>Host controls</h1>
   <p class="connection" id="connection">Connecting…</p>
 
-  <div class="layout">
+  <form id="login" hidden>
+    <p>Enter the admin key.</p>
+    <input id="key" type="password" autocomplete="current-password">
+    <button type="submit">Unlock</button>
+    <p id="login-error"></p>
+  </form>
+
+  <div class="layout" id="panel" hidden>
     <main>
       <p><span class="phase" id="phase"></span> <span id="progress"></span> <span id="countdown"></span></p>
       <div id="question"></div>
@@ -37,11 +56,11 @@
       <p class="result" id="result"></p>
 
       <div class="controls">
-        <button id="show">Show next question</button>
-        <button id="open">Open buzzers</button>
-        <button id="correct">Correct</button>
-        <button id="wrong">Wrong</button>
-        <button id="reveal">Reveal answer</button>
+        <button id="show">Show next question<kbd>N</kbd></button>
+        <button id="open">Open buzzers<kbd>O</kbd></button>
+        <button id="correct">Correct<kbd>C</kbd></button>
+        <button id="wrong">Wrong<kbd>W</kbd></button>
+        <button id="reveal">Reveal answer<kbd>R</kbd></button>
       </div>
       <p id="message"></p>
 
@@ -53,8 +72,13 @@
     </main>
 
     <aside>
+      <div class="tools">
+        <button id="undo">Undo<kbd>Z</kbd></button>
+        <button id="registration"></button>
+        <button id="reset">Reset game…</button>
+      </div>
       <h2>Teams</h2>
-      <ul class="teams" id="teams"></ul>
+      <div id="teams"></div>
       <h2>Questions</h2>
       <ol id="question-list"></ol>
     </aside>

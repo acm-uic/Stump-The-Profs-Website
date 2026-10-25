@@ -37,6 +37,15 @@ socket.on("connect", () => {
 });
 socket.on("disconnect", () => { $("#connection").textContent = "Reconnecting…"; });
 
+// The host removed this team, or reset the whole game: forget the code and start over.
+function forgetTeam(reason) {
+  localStorage.removeItem(CODE_KEY);
+  showRegister();
+  $("#error").textContent = reason;
+}
+socket.on("team:kicked", () => forgetTeam("Your team was removed by the host."));
+socket.on("game:reset", () => forgetTeam("The host started a new game. Join again."));
+
 $("#register").addEventListener("submit", (event) => {
   event.preventDefault(); // stop the browser reloading the page
   const name = $("#team-name").value;

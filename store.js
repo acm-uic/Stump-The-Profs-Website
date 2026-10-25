@@ -1,4 +1,5 @@
 import fs from "node:fs";
+import path from "node:path";
 
 const TYPES = ["free", "mc", "tf"];
 
@@ -43,12 +44,44 @@ export function validateQuestions(list) {
   return list;
 }
 
-export function loadQuestions(path) {
+export function loadQuestions(filePath) {
   let list;
   try {
-    list = JSON.parse(fs.readFileSync(path, "utf8"));
+    list = JSON.parse(fs.readFileSync(filePath, "utf8"));
   } catch (error) {
-    throw new Error(`Could not read ${path}: ${error.message}`);
+    throw new Error(`Could not read ${filePath}: ${error.message}`);
   }
   return validateQuestions(list);
+}
+
+// Writes JSON so the file is always complete: write a temporary file, then rename it
+// over the real one. A rename happens all at once, so a crash mid-write leaves the
+// previous save intact instead of half a file.
+export function writeJsonAtomic(filePath, data) {
+  fs.mkdirSync(path.dirname(filePath), { recursive: true });
+  const temp = `${filePath}.tmp`;
+  fs.writeFileSync(temp, JSON.stringify(data, null, 2));
+  fs.renameSync(temp, filePath);
+}
+
+export function saveState(state, filePath) {
+  writeJsonAtomic(filePath, state);
+}
+
+// Gives back the saved game, or null if there is no save. A save that cannot be read
+// is moved aside (never deleted) so the server can still start.
+export function loadState(filePath) {
+  if (!fs.existsSync(filePath)) return null;
+  try {
+    const state = JSON.parse(fs.readFileSync(filePath, "utf8"));
+    const looksLikeAGame = state && typeof state.teams === "object" && typeof state.phase === "string"
+      && Array.isArray(state.questions) && state.crowd && Array.isArray(state.history);
+    if (!looksLikeAGame) throw new Error("it does not look like a saved game");
+    return state;
+  } catch (error) {
+    const aside = `${filePath}.broken-${Date.now()}`;
+    fs.renameSync(filePath, aside);
+    console.error(`WARNING: could not load ${filePath} (${error.message}). Moved it to ${aside} and started a new game.`);
+    return null;
+  }
 }

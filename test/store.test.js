@@ -53,3 +53,42 @@ test("points must be a positive whole number", () => {
   list[0].points = "300";
   assert.throws(() => validateQuestions(list), /points/);
 });
+
+// ---- Saving and loading ------------------------------------------------------
+
+import fs from "node:fs";
+import os from "node:os";
+import path from "node:path";
+import { saveState, loadState } from "../store.js";
+import { createGame, registerTeam } from "../game.js";
+
+const tempDir = () => fs.mkdtempSync(path.join(os.tmpdir(), "stp-"));
+
+test("save then load gives back the same game", () => {
+  const file = path.join(tempDir(), "nested", "state.json");
+  const state = createGame(good());
+  registerTeam(state, { name: "Byte Me", side: "student" });
+  registerTeam(state, { name: "Dr. Null", side: "prof" });
+  saveState(state, file);
+  assert.deepEqual(loadState(file), state);
+  assert.equal(fs.existsSync(`${file}.tmp`), false);
+});
+
+test("loading a missing file gives null", () => {
+  assert.equal(loadState(path.join(tempDir(), "nope.json")), null);
+});
+
+test("a broken save is moved aside, not deleted, and gives null", () => {
+  const dir = tempDir();
+  const file = path.join(dir, "state.json");
+  fs.writeFileSync(file, "{ half a fi");
+  const originalError = console.error;
+  console.error = () => {};
+  try {
+    assert.equal(loadState(file), null);
+  } finally {
+    console.error = originalError;
+  }
+  assert.equal(fs.existsSync(file), false);
+  assert.equal(fs.readdirSync(dir).some((f) => f.startsWith("state.json.broken-")), true);
+});

@@ -34,6 +34,15 @@ socket.on("connect", () => {
 });
 socket.on("disconnect", () => { $("#connection").textContent = "Reconnecting…"; });
 
+// The host started a new game: crowd ids from the old game no longer exist.
+socket.on("game:reset", () => {
+  localStorage.removeItem(SPECTATOR_KEY);
+  me = null;
+  $("#crowd-join").hidden = false;
+  $("#crowd-controls").hidden = true;
+  $("#crowd-error").textContent = "A new game started. Join again!";
+});
+
 function renderResult(view) {
   const box = $("#result");
   box.hidden = !view.result;

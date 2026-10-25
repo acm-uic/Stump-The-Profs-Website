@@ -8,7 +8,7 @@
 // Every action first checks it is allowed in the current phase.
 
 import { pointsFor, lockInPoints, autoCheck } from "./scoring.js";
-import { LOCKIN_MAX_LENGTH } from "./config.js";
+import { LOCKIN_MAX_LENGTH, MAX_ADJUST } from "./config.js";
 import { stealOrder } from "./turns.js";
 import { createCrowd, startQuestion, settleQuestion } from "./crowd.js";
 
@@ -84,6 +84,33 @@ export function rejoinTeam(state, code) {
   const team = Object.values(state.teams).find((t) => t.code === wanted);
   if (!team) return { ok: false, error: "No team has that code" };
   return { ok: true, team };
+}
+
+// ---- Host fixes ------------------------------------------------------------
+
+// Add or remove points by hand, e.g. after a disputed ruling.
+export function adjustScore(state, teamId, delta) {
+  const team = state.teams[teamId];
+  if (!team) return { ok: false, error: "Unknown team" };
+  if (!Number.isInteger(delta) || delta === 0) return { ok: false, error: "Enter a whole number of points" };
+  if (Math.abs(delta) > MAX_ADJUST) return { ok: false, error: `Adjust by at most ${MAX_ADJUST} at a time` };
+  team.score += delta;
+  return { ok: true };
+}
+
+// Remove a team. Only between questions, so nobody's steal order or lock-ins change mid-question.
+export function kickTeam(state, teamId) {
+  if (!state.teams[teamId]) return { ok: false, error: "Unknown team" };
+  if (state.phase === "open" || state.phase === "answering") {
+    return { ok: false, error: "Remove teams between questions" };
+  }
+  delete state.teams[teamId];
+  return { ok: true };
+}
+
+export function toggleRegistration(state) {
+  state.registrationOpen = !state.registrationOpen;
+  return { ok: true, open: state.registrationOpen };
 }
 
 // ---- Question phases ------------------------------------------------------

@@ -23,3 +23,23 @@ export const CROWD_POINTS = { prediction: 10, pick: 10 };
 export const CHEER_TICK_MS = 250;
 export const CHEER_DECAY = 0.85;
 export const CHEER_MIN_GAP_MS = 150;
+
+// ---- Settings that change between machines. They come from the environment
+// (a .env file locally, a Kubernetes Secret on the cluster), never from the code.
+
+export const PORT = Number(process.env.PORT ?? 3000);
+
+// The admin password. server.js refuses to start without it.
+export const ADMIN_KEY = process.env.ADMIN_KEY;
+
+// Where the game is saved after every change.
+export const SAVE_PATH = process.env.SAVE_PATH ?? "data/state.json";
+
+// The address shown on the projector. Falls back to this laptop's Wi-Fi address.
+export const PUBLIC_URL = process.env.PUBLIC_URL;
+
+// How many admin actions Undo can step back through.
+export const UNDO_LIMIT = 30;
+
+// Biggest single score adjustment the admin can make, to catch typos like 2000 for 200.
+export const MAX_ADJUST = 1000;

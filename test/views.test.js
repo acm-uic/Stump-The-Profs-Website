@@ -124,7 +124,7 @@ test("the team view has exactly the agreed fields, and a history line per finish
 
   const view = teamView(state, b.id, 3000);
   assert.deepEqual(Object.keys(view).sort(), [
-    "answerRemainingMs", "answerTotalMs", "attempted", "buzzer", "buzzes", "canLockIn", "floorTeam",
+    "answerRemainingMs", "answerTotalMs", "answersOpen", "attempted", "buzzer", "buzzes", "canLockIn", "crowd", "floorTeam",
     "history", "lockInCount", "lockInPoints", "me", "myLockIn", "phase", "place", "question",
     "questionNumber", "questionTotal", "result", "sides", "stats", "teams", "upNext",
   ]);

@@ -4,6 +4,7 @@ import {
   createGame, registerTeam, rejoinTeam, showQuestion, openBuzzers, buzz, judge, reveal, upNext,
   lockIn, markLockIn,
 } from "../game.js";
+import { joinCrowd, predict, pick } from "../crowd.js";
 
 const QUESTIONS = [
   { id: "q1", type: "free", prompt: "Free?", answer: "yes" },
@@ -297,4 +298,24 @@ test("an exact free response lock-in is paid automatically at the reveal", () =>
   lockIn(state, b.id, "YES");
   reveal(state);
   assert.equal(b.score, 75);
+});
+
+test("ending a question settles the crowd, and showing the next one clears it", () => {
+  const { state, a, b } = gameWithTeams();
+  const crowd = state.crowd;
+  const ana = joinCrowd(crowd, "Ana").spectator.id;
+  const ben = joinCrowd(crowd, "Ben").spectator.id;
+  showQuestion(state, 1); // mc, answer 1
+  predict(crowd, ana, "prof", state.phase);
+  predict(crowd, ben, "student", state.phase);
+  openBuzzers(state, 1000);
+  pick(crowd, ana, 1, state.phase, state.questions[1], state.current.lockInsOpen);
+  buzz(state, a.id, 1100);
+  judge(state, false, 1200); // student wrong -> prof
+  judge(state, true, 1300);  // prof right
+  assert.equal(b.score, 200);
+  assert.equal(crowd.spectators[ana].score, 20); // right prediction and right pick
+  assert.equal(crowd.spectators[ben].score, 0);
+  showQuestion(state);
+  assert.deepEqual(crowd.predictions, {});
 });

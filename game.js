@@ -10,6 +10,7 @@
 import { pointsFor, lockInPoints, autoCheck } from "./scoring.js";
 import { LOCKIN_MAX_LENGTH } from "./config.js";
 import { stealOrder } from "./turns.js";
+import { createCrowd, startQuestion, settleQuestion } from "./crowd.js";
 
 const SIDES = ["student", "prof"];
 const CODE_ALPHABET = "ABCDEFGHJKLMNPQRSTUVWXYZ23456789"; // no O/0, I/1 look-alikes
@@ -39,6 +40,7 @@ export function createGame(questions = []) {
     registrationOpen: true,
     current: freshCurrent(),
     history: [], // one record per finished question, used for each team's history and stats
+    crowd: createCrowd(), // spectators and their predictions, picks and scores
   };
 }
 
@@ -97,6 +99,7 @@ export function showQuestion(state, index) {
   }
   state.questionIndex = target;
   state.current = freshCurrent();
+  startQuestion(state.crowd);
   state.phase = "preview";
   return { ok: true };
 }
@@ -196,6 +199,8 @@ function endQuestion(state) {
     lockInsAwarded: [],
   });
   settleLockIns(state);
+  const winner = state.teams[state.current.winnerTeamId];
+  settleQuestion(state.crowd, { winnerSide: winner?.side ?? null, question });
 }
 
 // ---- Lock-ins -------------------------------------------------------------

@@ -3,7 +3,7 @@
 // The team view is the contract between the server and player.js. Its shape:
 //   phase, questionNumber, questionTotal, question { type, prompt, choices?, category?, points, answer? }
 //   teams [{ id, name, side, score, rank }], sides { student, prof }, buzzes, floorTeam, upNext, attempted
-//   answerRemainingMs, answerTotalMs, lockInCount, lockInPoints, result
+//   answerRemainingMs, answerTotalMs, lockInCount, lockInPoints, result, crowd, answersOpen
 //   me { id, name, side, score, code, rank, rankOf }
 //   buzzer: "locked" | "ready" | "buzzed" | "floor" | "tried" | "over", place (number or null)
 //   myLockIn, canLockIn
@@ -17,6 +17,7 @@
 import { ANSWER_SECONDS } from "./config.js";
 import { currentQuestion, upNext } from "./game.js";
 import { pointsFor, lockInPoints } from "./scoring.js";
+import { crowdView } from "./crowd.js";
 
 function questionFor(state, includeAnswer) {
   const q = currentQuestion(state);
@@ -113,6 +114,9 @@ export function publicView(state, now) {
       ? Math.max(0, current.answeringSince + ANSWER_SECONDS * 1000 - now)
       : null,
     lockInCount: Object.keys(current.lockIns).length,
+    crowd: crowdView(state.crowd, state.phase),
+    // Lock-ins and answer-along close together, at the first judgement.
+    answersOpen: ["preview", "open", "answering"].includes(state.phase) && current.lockInsOpen,
     lockInPoints: currentQuestion(state) ? lockInPoints(currentQuestion(state)) : 0,
     result:
       state.phase === "revealed"

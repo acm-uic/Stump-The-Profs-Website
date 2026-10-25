@@ -12,3 +12,14 @@ export const LOCKIN_SHARE = 0.25;
 
 // Longest free-response lock-in, so the admin screen can show them all.
 export const LOCKIN_MAX_LENGTH = 80;
+
+// Crowd points for spectators: a right prediction (which side wins the question)
+// and a right answer-along pick on multiple choice and true/false.
+export const CROWD_POINTS = { prediction: 10, pick: 10 };
+
+// Cheer meter: each tick (CHEER_TICK_MS) both totals shrink by CHEER_DECAY, so the
+// meter shows the room's energy right now, not all night. A phone may cheer at most
+// once every CHEER_MIN_GAP_MS.
+export const CHEER_TICK_MS = 250;
+export const CHEER_DECAY = 0.85;
+export const CHEER_MIN_GAP_MS = 150;

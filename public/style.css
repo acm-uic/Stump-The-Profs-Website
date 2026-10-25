@@ -17,3 +17,4 @@ body { font-family: system-ui, sans-serif; margin: 2rem auto; padding: 0 1rem; c
 .code { font-family: ui-monospace, monospace; letter-spacing: 0.15em; background: #f1f1f1; padding: 0.1rem 0.5rem; border-radius: 0.3rem; }
 .result { font-size: 1.25rem; }
 #countdown { margin-left: 0.5rem; color: #d62828; font-weight: bold; }
+[hidden] { display: none !important; } /* a display: flex/grid rule would otherwise beat the hidden attribute */

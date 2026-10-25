@@ -19,6 +19,8 @@
     #question-list { font-size: 0.9rem; padding-left: 1.5rem; }
     #question-list li.played { color: #999; }
     #question-list li.current { font-weight: bold; }
+    #lockins button { margin-left: 0.25rem; }
+    .mark-right { color: #2a9d4b; } .mark-wrong { color: #d62828; } .mark-pending { color: #b07d00; }
   </style>
 </head>
 <body>
@@ -42,6 +44,9 @@
         <button id="reveal">Reveal answer</button>
       </div>
       <p id="message"></p>
+
+      <h2>Lock-ins <small id="lockin-value"></small></h2>
+      <ul class="teams" id="lockins"></ul>
 
       <h2>Buzzes</h2>
       <ol id="buzzes"></ol>

@@ -19,6 +19,15 @@
     #buzz:not(:disabled):active { transform: scale(0.97); }
     #status { font-size: 1.25rem; font-weight: 600; min-height: 1.5em; }
     #countdown { color: #d62828; }
+    #lockin { margin-top: 1.5rem; padding: 1rem; border: 2px dashed #888; border-radius: 0.75rem; }
+    #lockin h3 { margin: 0 0 0.25rem; }
+    #lockin-options { display: grid; gap: 0.4rem; margin-top: 0.5rem; }
+    #lockin-options button { font-size: 1.1rem; padding: 0.6rem; border-radius: 0.4rem; border: 1px solid #888; background: #f7f7f7; cursor: pointer; text-align: left; }
+    #lockin-free { display: flex; gap: 0.4rem; }
+    #lockin-free input { flex: 1; font-size: 1.1rem; padding: 0.5rem; }
+    #lockin-free button { font-size: 1.1rem; padding: 0.5rem 1rem; }
+    #lockin-result { font-weight: 600; }
+    #lockin-error { color: #d62828; }
   </style>
 </head>
 <body>
@@ -42,6 +51,18 @@
     <div id="question"></div>
     <button id="buzz" disabled>BUZZ</button>
     <p id="status"></p>
+
+    <section id="lockin" hidden>
+      <h3>Lock in an answer</h3>
+      <p><small>Not your turn? Lock in secretly for <strong id="lockin-points"></strong> points if you're right. One try. Closes when the first answer is judged.</small></p>
+      <div id="lockin-options"></div>
+      <form id="lockin-free" hidden>
+        <input id="lockin-text" type="text" maxlength="80" placeholder="Your answer" autocomplete="off">
+        <button type="submit">Lock in</button>
+      </form>
+      <p id="lockin-result"></p>
+      <p id="lockin-error"></p>
+    </section>
   </section>
 
   <script src="/socket.io/socket.io.js"></script>

@@ -26,6 +26,12 @@ socket.on("state", (view) => {
   }
 
   $("#floor").textContent = view.floorTeam ? `${view.floorTeam.name} is answering` : "";
+  const lockInLine = view.result?.lockInWinners.length
+    ? `Lock-in bonus (+${view.lockInPoints}): ${view.result.lockInWinners.map((t) => t.name).join(", ")}`
+    : view.lockInCount && view.phase !== "revealed"
+      ? `${view.lockInCount} team${view.lockInCount === 1 ? "" : "s"} locked in an answer`
+      : "";
+  $("#lockin-line").textContent = lockInLine;
   startCountdown($("#countdown"), view.answerRemainingMs);
   $("#up-next").textContent = upNextText(view);
 

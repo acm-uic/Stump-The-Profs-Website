@@ -1,4 +1,4 @@
-import { connect, PHASE_LABELS, SIDE_NAMES, renderQuestion, startCountdown } from "/common.js";
+import { connect, PHASE_LABELS, SIDE_NAMES, letter, renderQuestion, startCountdown } from "/common.js";
 
 const socket = connect();
 const $ = (selector) => document.querySelector(selector);
@@ -51,6 +51,69 @@ $("#register").addEventListener("submit", (event) => {
 
 $("#buzz").addEventListener("click", () => socket.emit("team:buzz"));
 
+// ---- Lock-ins ----
+function sendLockIn(answer) {
+  $("#lockin-error").textContent = "";
+  socket.emit("team:lockin", { answer }, (reply) => {
+    if (!reply.ok) $("#lockin-error").textContent = reply.error;
+  });
+}
+$("#lockin-free").addEventListener("submit", (event) => {
+  event.preventDefault();
+  sendLockIn($("#lockin-text").value);
+});
+
+// Builds the choice buttons for the current question, only when the question changes,
+// so a button is never redrawn under someone's finger.
+let builtFor = null;
+function buildLockInOptions(view) {
+  const key = `${view.questionNumber}`;
+  if (builtFor === key) return;
+  builtFor = key;
+  $("#lockin-text").value = "";
+  const q = view.question;
+  const options =
+    q?.type === "mc" ? q.choices.map((c, i) => [`${letter(i)}. ${c}`, i])
+    : q?.type === "tf" ? [["True", true], ["False", false]]
+    : [];
+  $("#lockin-options").replaceChildren(...options.map(([text, value]) => {
+    const button = document.createElement("button");
+    button.textContent = text;
+    button.addEventListener("click", () => sendLockIn(value));
+    return button;
+  }));
+  $("#lockin-free").hidden = q?.type !== "free";
+}
+
+function lockInText(view, answer) {
+  const q = view.question;
+  if (q.type === "mc") return `${letter(answer)}. ${q.choices[answer]}`;
+  if (q.type === "tf") return answer ? "True" : "False";
+  return `"${answer}"`;
+}
+
+function renderLockIn(view) {
+  const mine = view.myLockIn;
+  const showPanel = view.canLockIn || mine;
+  $("#lockin").hidden = !showPanel;
+  if (!showPanel) return;
+  buildLockInOptions(view);
+  $("#lockin-points").textContent = view.lockInPoints;
+  $("#lockin-options").hidden = !view.canLockIn;
+  $("#lockin-free").hidden = !view.canLockIn || view.question.type !== "free";
+
+  let text = "";
+  if (mine) {
+    text = `Locked in: ${lockInText(view, mine.answer)}`;
+    if (view.phase === "revealed") {
+      if (mine.awarded) text += ` · Right! +${view.lockInPoints}`;
+      else if (mine.correct === false) text += " · Not this time";
+      else if (mine.correct == null) text += " · Waiting for the host to mark it";
+    }
+  }
+  $("#lockin-result").textContent = text;
+}
+
 // Only registered teams receive "state" (their own team view). Redraw from it.
 socket.on("state", (view) => {
   const { me, phase } = view;
@@ -81,4 +144,5 @@ socket.on("state", (view) => {
       : "Nobody got it";
   }
   $("#status").textContent = status;
+  renderLockIn(view);
 });

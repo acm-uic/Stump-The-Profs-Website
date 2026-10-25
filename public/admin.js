@@ -26,6 +26,37 @@ $("#correct").addEventListener("click", () => send({ type: "judge", correct: tru
 $("#wrong").addEventListener("click", () => send({ type: "judge", correct: false }));
 $("#reveal").addEventListener("click", () => send({ type: "reveal" }));
 
+function lockInRow(view, entry) {
+  const li = document.createElement("li");
+  const left = document.createElement("span");
+  left.textContent = `${entry.name}: ${lockInAnswerText(view.question, entry.answer)} `;
+  const mark = document.createElement("span");
+  if (entry.correct === true) { mark.textContent = entry.awarded ? `✓ +${view.lockInPoints}` : "✓ (won the question)"; mark.className = "mark-right"; }
+  else if (entry.correct === false) { mark.textContent = "✗"; mark.className = "mark-wrong"; }
+  else { mark.textContent = view.phase === "revealed" ? "needs marking →" : "free response: mark after reveal"; mark.className = "mark-pending"; }
+  left.append(mark);
+  li.append(left);
+
+  // Free response lock-ins are marked by the host after the reveal. Clicking again is safe.
+  if (view.question?.type === "free" && view.phase === "revealed") {
+    const buttons = document.createElement("span");
+    for (const [label, correct] of [["Right", true], ["Wrong", false]]) {
+      const button = document.createElement("button");
+      button.textContent = label;
+      button.addEventListener("click", () => send({ type: "markLockIn", teamId: entry.teamId, correct }));
+      buttons.append(button);
+    }
+    li.append(buttons);
+  }
+  return li;
+}
+
+function lockInAnswerText(question, answer) {
+  if (question?.type === "mc") return `${String.fromCharCode(65 + answer)}. ${question.choices[answer]}`;
+  if (question?.type === "tf") return answer ? "True" : "False";
+  return `"${answer}"`;
+}
+
 socket.on("state", (view) => {
   const { phase } = view;
   $("#phase").textContent = PHASE_LABELS[phase];
@@ -59,6 +90,16 @@ socket.on("state", (view) => {
     li.textContent = `${b.name} (${(b.ms / 1000).toFixed(2)} s)`;
     return li;
   }));
+
+  $("#lockin-value").textContent = view.question ? `(worth ${view.lockInPoints} each)` : "";
+  if (view.lockIns.length === 0) {
+    const li = document.createElement("li");
+    li.className = "empty-note";
+    li.textContent = "No lock-ins yet";
+    $("#lockins").replaceChildren(li);
+  } else {
+    $("#lockins").replaceChildren(...view.lockIns.map((entry) => lockInRow(view, entry)));
+  }
 
   $("#teams").replaceChildren(...view.teams.map((t) => {
     const li = document.createElement("li");

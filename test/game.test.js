@@ -2,6 +2,7 @@ import { test } from "node:test";
 import assert from "node:assert/strict";
 import {
   createGame, registerTeam, rejoinTeam, showQuestion, openBuzzers, buzz, judge, reveal, upNext,
+  lockIn, markLockIn,
 } from "../game.js";
 
 const QUESTIONS = [
@@ -222,4 +223,78 @@ test("show can jump to a question, but not past the end", () => {
   reveal(state);
   assert.equal(showQuestion(state).ok, false); // there is no 4th question
   assert.equal(showQuestion(state, 99).ok, false);
+});
+
+// ---- Lock-ins ---------------------------------------------------------------
+
+function threeTeamsOnQuestion(index) {
+  const state = createGame(structuredClone(QUESTIONS));
+  const a = registerTeam(state, { name: "A", side: "student" }).team;
+  const b = registerTeam(state, { name: "B", side: "prof" }).team;
+  const c = registerTeam(state, { name: "C", side: "student" }).team;
+  showQuestion(state, index);
+  openBuzzers(state, 1000);
+  return { state, a, b, c };
+}
+
+test("lock-ins: right pays 25%, wrong pays nothing, the winner gets no bonus", () => {
+  const { state, a, b, c } = threeTeamsOnQuestion(1); // mc, 200 points, answer 1
+  assert.equal(lockIn(state, b.id, 1).ok, true);
+  assert.equal(lockIn(state, c.id, 0).ok, true);
+  assert.equal(lockIn(state, a.id, 1).ok, true);
+  buzz(state, a.id, 1100);
+  judge(state, true, 1200);
+  assert.equal(a.score, 200);
+  assert.equal(b.score, 50);
+  assert.equal(b.stats.lockInHits, 1);
+  assert.equal(c.score, 0);
+});
+
+test("lock-ins close at the first judgement, and the team with the floor cannot lock in", () => {
+  const { state, a, b, c } = threeTeamsOnQuestion(2); // tf
+  buzz(state, a.id, 1100);
+  assert.equal(lockIn(state, a.id, true).ok, false);
+  judge(state, false, 1200); // floor passes to B
+  const late = lockIn(state, c.id, true);
+  assert.equal(late.ok, false);
+  assert.match(late.error, /closed/);
+  assert.equal(lockIn(state, b.id, true).ok, false);
+});
+
+test("lock-ins are once only and must fit the question type", () => {
+  const { state, b, c } = threeTeamsOnQuestion(1); // mc with 2 choices
+  assert.equal(lockIn(state, b.id, 5).ok, false);
+  assert.equal(lockIn(state, b.id, "1").ok, false);
+  assert.equal(lockIn(state, b.id, 1).ok, true);
+  assert.equal(lockIn(state, b.id, 0).ok, false);
+  assert.equal(lockIn(state, c.id, true).ok, false);
+  assert.equal(lockIn(state, "t99", 1).ok, false);
+});
+
+test("free response lock-ins wait for the host; marking is idempotent and reversible", () => {
+  const { state, a, b } = threeTeamsOnQuestion(0); // free, 300 points, answer "yes"
+  lockIn(state, b.id, "  yeah ");
+  buzz(state, a.id, 1100);
+  assert.equal(markLockIn(state, b.id, true).ok, false); // not revealed yet
+  judge(state, false, 1200);
+  judge(state, false, 1300);
+  judge(state, false, 1400); // everyone tried, revealed
+  assert.equal(state.phase, "revealed");
+  assert.equal(b.score, 0);
+  assert.equal(state.current.lockIns[b.id].answer, "yeah");
+  markLockIn(state, b.id, true);
+  markLockIn(state, b.id, true);
+  assert.equal(b.score, 75);
+  assert.equal(b.stats.lockInHits, 1);
+  markLockIn(state, b.id, false);
+  assert.equal(b.score, 0);
+  assert.equal(b.stats.lockInHits, 0);
+  assert.equal(markLockIn(state, a.id, true).ok, false); // A never locked in
+});
+
+test("an exact free response lock-in is paid automatically at the reveal", () => {
+  const { state, b } = threeTeamsOnQuestion(0);
+  lockIn(state, b.id, "YES");
+  reveal(state);
+  assert.equal(b.score, 75);
 });

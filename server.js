@@ -6,6 +6,7 @@ import { createServer } from "node:http";
 import { Server } from "socket.io";
 import {
   createGame, registerTeam, rejoinTeam, showQuestion, openBuzzers, buzz, judge, reveal,
+  lockIn, markLockIn,
 } from "./game.js";
 import { loadQuestions } from "./store.js";
 import { publicView, teamView, adminView } from "./views.js";
@@ -58,6 +59,7 @@ const adminActions = {
   open: (_action, now) => openBuzzers(state, now),
   judge: (action, now) => judge(state, action.correct, now),
   reveal: () => reveal(state),
+  markLockIn: (action) => markLockIn(state, action.teamId, action.correct),
 };
 
 const reply = (callback, result) => {
@@ -102,6 +104,13 @@ io.on("connection", (socket) => {
     const result = rejoinTeam(state, details?.code);
     if (result.ok) joinTeamRoom(socket, result.team);
     reply(callback, teamReply(result));
+  });
+
+  socket.on("team:lockin", (details, callback) => {
+    if (!socket.data.teamId) return reply(callback, { ok: false, error: "Join a team first" });
+    const result = lockIn(state, socket.data.teamId, details?.answer);
+    reply(callback, result.ok ? { ok: true } : { ok: false, error: result.error });
+    if (result.ok) broadcast();
   });
 
   socket.on("team:buzz", () => {

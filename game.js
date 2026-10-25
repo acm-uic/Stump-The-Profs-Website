@@ -7,7 +7,8 @@
 //         -> revealed (answer shown) -> preview (next question) ...
 // Every action first checks it is allowed in the current phase.
 
-import { pointsFor } from "./scoring.js";
+import { pointsFor, lockInPoints, autoCheck } from "./scoring.js";
+import { LOCKIN_MAX_LENGTH } from "./config.js";
 import { stealOrder } from "./turns.js";
 
 const SIDES = ["student", "prof"];
@@ -23,6 +24,8 @@ function freshCurrent() {
     answeringSince: null, // when that team got the floor
     winnerTeamId: null,
     pointsAwarded: 0,
+    lockIns: {},          // teamId -> { answer, correct: true | false | null, awarded }
+    lockInsOpen: true,    // closes at the first judgement, so nobody copies a spoken answer
   };
 }
 
@@ -134,6 +137,7 @@ export function judge(state, correct, now) {
   const team = state.teams[current.activeTeamId];
   const isSteal = current.attempted.length > 0;
   current.attempted.push(team.id);
+  current.lockInsOpen = false;
 
   if (correct) {
     const points = pointsFor(currentQuestion(state));
@@ -178,7 +182,74 @@ export function reveal(state) {
 function endQuestion(state) {
   state.current.activeTeamId = null;
   state.current.answeringSince = null;
+  state.current.lockInsOpen = false;
   state.phase = "revealed";
+  settleLockIns(state);
+}
+
+// ---- Lock-ins -------------------------------------------------------------
+
+// A team without the floor secretly commits to an answer, once per question.
+export function lockIn(state, teamId, answer) {
+  const team = state.teams[teamId];
+  if (!team) return { ok: false, error: "Unknown team" };
+  if (!["preview", "open", "answering"].includes(state.phase) || !state.current.lockInsOpen) {
+    return { ok: false, error: "Lock-ins are closed" };
+  }
+  const current = state.current;
+  if (current.activeTeamId === teamId || current.attempted.includes(teamId)) {
+    return { ok: false, error: "You have the floor, so answer out loud" };
+  }
+  if (current.lockIns[teamId]) return { ok: false, error: "You already locked in" };
+
+  const question = currentQuestion(state);
+  if (question.type === "mc" && !(Number.isInteger(answer) && answer >= 0 && answer < question.choices.length)) {
+    return { ok: false, error: "Pick one of the choices" };
+  }
+  if (question.type === "tf" && typeof answer !== "boolean") return { ok: false, error: "Pick true or false" };
+  if (question.type === "free") {
+    if (typeof answer !== "string" || answer.trim() === "") return { ok: false, error: "Type an answer" };
+    if (answer.length > LOCKIN_MAX_LENGTH) {
+      return { ok: false, error: `Answers can be at most ${LOCKIN_MAX_LENGTH} characters` };
+    }
+  }
+
+  const cleanAnswer = typeof answer === "string" ? answer.trim() : answer;
+  current.lockIns[teamId] = { answer: cleanAnswer, correct: autoCheck(question, cleanAnswer), awarded: false };
+  return { ok: true };
+}
+
+// After the reveal, the host marks a free-response lock-in right or wrong.
+export function markLockIn(state, teamId, correct) {
+  if (state.phase !== "revealed") return { ok: false, error: "Mark lock-ins after the reveal" };
+  const entry = state.current.lockIns[teamId];
+  if (!entry) return { ok: false, error: "That team did not lock in" };
+  if (typeof correct !== "boolean") return { ok: false, error: "Mark needs correct: true or false" };
+  entry.correct = correct;
+  settleLockIns(state);
+  return { ok: true };
+}
+
+// Pays out lock-ins. Safe to run any number of times: it only adds or removes the
+// difference between what should have been paid and what has been paid.
+// The question's winner gets no lock-in bonus on top of the full points.
+function settleLockIns(state) {
+  const current = state.current;
+  const points = lockInPoints(currentQuestion(state));
+  for (const [teamId, entry] of Object.entries(current.lockIns)) {
+    const team = state.teams[teamId];
+    if (!team) continue;
+    const shouldPay = entry.correct === true && teamId !== current.winnerTeamId;
+    if (shouldPay && !entry.awarded) {
+      team.score += points;
+      team.stats.lockInHits += 1;
+      entry.awarded = true;
+    } else if (!shouldPay && entry.awarded) {
+      team.score -= points;
+      team.stats.lockInHits -= 1;
+      entry.awarded = false;
+    }
+  }
 }
 
 // ---- Helpers --------------------------------------------------------------

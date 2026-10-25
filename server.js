@@ -13,6 +13,17 @@ import { publicView, teamView, adminView } from "./views.js";
 
 const PORT = Number(process.env.PORT ?? 3000);
 
+function lanAddresses() {
+  return Object.values(os.networkInterfaces())
+    .flat()
+    .filter((iface) => iface.family === "IPv4" && !iface.internal)
+    .map((iface) => iface.address);
+}
+
+// The address shown on the projector. On the cluster, PUBLIC_URL is the https address;
+// on a laptop it falls back to this laptop's Wi-Fi address.
+const joinUrl = process.env.PUBLIC_URL ?? `http://${lanAddresses()[0] ?? "localhost"}:${PORT}`;
+
 // Real questions live in data/, which git ignores, so the answers never reach GitHub.
 // Without that file, the harmless sample questions are used for development.
 const realQuestions = path.join(import.meta.dirname, "data", "questions.json");
@@ -33,11 +44,16 @@ const state = createGame(questions);
 // view, each team gets its own team view, and the admin gets everything.
 function broadcast() {
   const now = Date.now();
-  io.to("display").emit("state", publicView(state, now));
+  io.to("display").emit("state", displayView(now));
   io.to("admin").emit("state", adminView(state, now));
   for (const teamId of Object.keys(state.teams)) {
     io.to(`team:${teamId}`).emit("state", teamView(state, teamId, now));
   }
+}
+
+// The projector and spectators get the public view plus the address to join.
+function displayView(now) {
+  return { ...publicView(state, now), joinUrl };
 }
 
 // Reply only with what the page needs, never the whole team object.
@@ -69,7 +85,7 @@ const reply = (callback, result) => {
 io.on("connection", (socket) => {
   socket.on("display:join", () => {
     socket.join("display");
-    socket.emit("state", publicView(state, Date.now()));
+    socket.emit("state", displayView(Date.now()));
   });
 
   // Chunk 9 adds the admin key check here. Until then, anyone can open the admin page.
@@ -120,16 +136,7 @@ io.on("connection", (socket) => {
   });
 });
 
-function lanAddresses() {
-  return Object.values(os.networkInterfaces())
-    .flat()
-    .filter((iface) => iface.family === "IPv4" && !iface.internal)
-    .map((iface) => iface.address);
-}
-
 httpServer.listen(PORT, "0.0.0.0", () => {
   console.log(`Listening on http://localhost:${PORT}`);
-  for (const address of lanAddresses()) {
-    console.log(`Other devices: http://${address}:${PORT}/display.html`);
-  }
+  console.log(`Join address shown on the projector: ${joinUrl}`);
 });

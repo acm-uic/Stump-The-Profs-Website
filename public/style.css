@@ -13,7 +13,7 @@ body { font-family: system-ui, sans-serif; margin: 2rem auto; padding: 0 1rem; c
 .choices li { padding: 0.5rem 0.75rem; border: 1px solid #ccc; border-radius: 0.4rem; }
 .choices li.correct { background: #2a9d4b; border-color: #2a9d4b; color: #fff; font-weight: bold; }
 .teams { list-style: none; padding: 0; }
-.teams li { display: flex; justify-content: space-between; padding: 0.25rem 0; border-bottom: 1px solid #eee; }
+.teams li { display: flex; justify-content: space-between; gap: 0.75rem; padding: 0.25rem 0; border-bottom: 1px solid #eee; }
 .code { font-family: ui-monospace, monospace; letter-spacing: 0.15em; background: #f1f1f1; padding: 0.1rem 0.5rem; border-radius: 0.3rem; }
 .result { font-size: 1.25rem; }
 #countdown { margin-left: 0.5rem; color: #d62828; font-weight: bold; }

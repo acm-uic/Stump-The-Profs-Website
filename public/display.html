@@ -6,32 +6,106 @@
   <title>Display · Stump the Profs</title>
   <link rel="stylesheet" href="/style.css">
   <style>
-    body { max-width: 56rem; }
-    .sides { display: grid; grid-template-columns: 1fr 1fr; gap: 2rem; }
-    #floor { font-size: 1.5rem; font-weight: bold; }
-    #countdown { font-size: 1.5rem; color: #d62828; margin-left: 0.5rem; }
-    ol#buzzes { font-size: 1.25rem; }
-    .gap { color: #888; font-size: 1rem; margin-left: 0.5rem; }
+    /* ---- Shared by phone and projector ---- */
+    :root { --students: #3b8eea; --profs: #b05cc2; --accent: #f2a900; --good: #2fb35a; --bad: #e5484d; }
+    body.display { max-width: 46rem; }
+    .topbar { display: flex; flex-wrap: wrap; align-items: center; gap: 0.6rem; justify-content: space-between; }
+    .topbar h1 { margin: 0; font-size: 1.4rem; }
+    .join { color: #666; font-size: 0.95rem; }
+    .join strong { color: inherit; font-family: ui-monospace, monospace; }
+    .floor { margin-top: 1rem; }
+    .floor-name { font-size: 1.5rem; font-weight: 800; }
+    .bar { height: 0.6rem; background: #ddd; border-radius: 0.3rem; overflow: hidden; margin-top: 0.4rem; }
+    .bar div { height: 100%; width: 0; background: var(--accent); transition: width 0.1s linear; }
+    #up-next, #lockin-line { color: #555; }
+    .result-banner { font-size: 1.5rem; font-weight: 800; margin: 0.75rem 0; }
+    .result-banner.win { color: var(--good); }
+    .result-banner .answer { display: block; font-size: 0.8em; font-weight: 700; color: #111; margin-top: 0.2em; }
+    .projector .result-banner .answer { color: #fff; }
+    .board { margin-top: 1.5rem; }
+    .totals { display: grid; grid-template-columns: 1fr 1fr; text-align: center; font-weight: 800; }
+    .totals .num { display: block; font-size: 2rem; }
+    .totals .s { color: var(--students); } .totals .p { color: var(--profs); }
+    .tug { display: flex; height: 0.8rem; border-radius: 0.4rem; overflow: hidden; margin: 0.4rem 0 1rem; background: #ddd; }
+    .tug .s { background: var(--students); transition: width 0.4s; } .tug .p { background: var(--profs); transition: width 0.4s; }
+    .sides { display: grid; grid-template-columns: 1fr 1fr; gap: 1.25rem; }
+    .buzzes { list-style: none; padding: 0; display: flex; flex-wrap: wrap; gap: 0.4rem; }
+    .buzzes li { background: #f1f1f1; border-radius: 1rem; padding: 0.15rem 0.7rem; }
+    .buzzes li:first-child { background: var(--accent); color: #000; font-weight: 700; }
+    .buzzes .gap { opacity: 0.7; font-size: 0.85em; margin-left: 0.3rem; }
+    .waiting { font-size: 1.3rem; color: #666; margin: 2rem 0; }
+    .teams span { overflow-wrap: anywhere; }
+
+    /* ---- Projector: dark, huge, fills the screen ---- */
+    body.projector { max-width: none; margin: 0; padding: 1.5vh 2.5vw; height: 100vh; box-sizing: border-box;
+                     background: #0e1117; color: #f5f5f5; display: grid; grid-template-rows: auto 1fr; gap: 2vh;
+                     font-size: clamp(1rem, 1.35vw, 2.2rem); overflow: hidden; }
+    .projector .connection { display: none; }
+    .projector .topbar h1 { font-size: 1.6em; }
+    .projector .join { color: #c9d1d9; font-size: 1em; }
+    .projector .phase { font-size: 1em; background: #262c36; }
+    .projector .phase.open { background: var(--bad); } .projector .phase.answering { background: var(--accent); color: #000; } .projector .phase.revealed { background: var(--good); }
+    .projector main { display: grid; grid-template-columns: 1.7fr 1fr; gap: 3vw; min-height: 0; }
+    .projector .stage { display: flex; flex-direction: column; min-height: 0; }
+    .projector .meta { color: #9aa4b2; font-size: 1em; }
+    .projector .prompt { font-size: 2.3em; line-height: 1.15; }
+    .projector .choices { grid-template-columns: 1fr 1fr; gap: 1vh 1.5vw; }
+    .projector .choices li { font-size: 1.4em; border-color: #39414d; background: #161b22; padding: 0.6em 0.8em; }
+    .projector .choices li.correct { background: var(--good); border-color: var(--good); color: #fff; }
+    .projector .floor-name { font-size: 2em; color: var(--accent); }
+    .projector .bar { height: 1.2vh; background: #262c36; }
+    .projector #countdown { font-size: 1.6em; color: var(--accent); }
+    .projector #up-next, .projector #lockin-line { color: #c9d1d9; font-size: 1.1em; }
+    .projector .result-banner { font-size: 2em; }
+    .projector .board { margin-top: 0; background: #161b22; border-radius: 1rem; padding: 1.5vh 1.5vw; overflow: hidden; }
+    .projector .totals .num { font-size: 3em; }
+    .projector .tug { height: 1.6vh; background: #262c36; }
+    .projector .teams li { border-color: #262c36; font-size: 1.1em; padding: 0.35em 0; }
+    .projector .teams strong { font-variant-numeric: tabular-nums; }
+    .projector .buzzes li { background: #262c36; }
+    .projector .buzzes li:first-child { background: var(--accent); color: #000; }
+    .projector .waiting { color: #9aa4b2; font-size: 2em; }
+    .projector .empty-note { color: #6e7681; }
+    #fullscreen-hint { position: fixed; bottom: 0.5vh; right: 1vw; color: #6e7681; font-size: 0.7em; }
+    body:not(.projector) #fullscreen-hint { display: none; }
+    @media (max-width: 600px) { body.display:not(.projector) .sides { grid-template-columns: 1fr; } }
   </style>
 </head>
-<body>
-  <h1>Stump the Profs</h1>
+<body class="display">
+  <div class="topbar">
+    <h1>Stump the Profs</h1>
+    <span><span class="phase" id="phase"></span> <span id="progress"></span></span>
+    <span class="join" id="join"></span>
+  </div>
   <p class="connection" id="connection">Connecting…</p>
 
-  <p><span class="phase" id="phase"></span> <span id="progress"></span></p>
-  <div id="question"></div>
-  <p class="result" id="result"></p>
-  <p><span id="floor"></span><span id="countdown"></span></p>
-  <p id="up-next"></p>
-  <p id="lockin-line"></p>
+  <main>
+    <section class="stage">
+      <p class="waiting" id="waiting">Waiting for the first question…</p>
+      <div id="question"></div>
+      <div class="result-banner" id="result" hidden></div>
+      <div class="floor" id="floor-box" hidden>
+        <span class="floor-name" id="floor"></span> <span id="countdown"></span>
+        <div class="bar"><div id="countdown-bar"></div></div>
+      </div>
+      <p id="up-next"></p>
+      <p id="lockin-line"></p>
+      <ul class="buzzes" id="buzzes"></ul>
+    </section>
 
-  <h2>Buzzes</h2>
-  <ol id="buzzes"></ol>
-
-  <div class="sides">
-    <section><h2>Students</h2><ul class="teams" id="students"></ul></section>
-    <section><h2>Professors</h2><ul class="teams" id="profs"></ul></section>
-  </div>
+    <section class="board">
+      <div class="totals">
+        <div class="s">Students<span class="num" id="total-students">0</span></div>
+        <div class="p">Professors<span class="num" id="total-profs">0</span></div>
+      </div>
+      <div class="tug"><div class="s" id="tug-s"></div><div class="p" id="tug-p"></div></div>
+      <div class="sides">
+        <div><ul class="teams" id="students"></ul></div>
+        <div><ul class="teams" id="profs"></ul></div>
+      </div>
+    </section>
+  </main>
+  <p id="fullscreen-hint">Press F for full screen</p>
 
   <script src="/socket.io/socket.io.js"></script>
   <script type="module" src="/display.js"></script>

@@ -42,18 +42,20 @@ export function connect() {
 }
 
 // Counts down from a duration the server measured. Using a duration rather than a
-// clock time means devices with wrong clocks still agree.
+// clock time means devices with wrong clocks still agree. Optionally fills a bar.
 const timers = new Map();
-export function startCountdown(el, remainingMs) {
+export function startCountdown(el, remainingMs, totalMs, barEl) {
   clearInterval(timers.get(el));
   if (remainingMs == null) {
     el.textContent = "";
+    if (barEl) barEl.style.width = "0%";
     return;
   }
   const receivedAt = performance.now();
   const tick = () => {
     const left = Math.max(0, remainingMs - (performance.now() - receivedAt));
     el.textContent = `${Math.ceil(left / 1000)} s`;
+    if (barEl) barEl.style.width = `${(left / totalMs) * 100}%`;
     if (left === 0) clearInterval(timers.get(el));
   };
   tick();

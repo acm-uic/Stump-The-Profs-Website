@@ -3,8 +3,9 @@ import path from "node:path";
 import os from "node:os";
 import { createServer } from "node:http";
 import { Server } from "socket.io";
+import { createGame, registerTeam, rejoinTeam, buzz, clearBuzzes } from "./game.js";
 
-const PORT = 3000;
+const PORT = Number(process.env.PORT ?? 3000);
 
 const app = express();
 const publicDir = path.join(import.meta.dirname, "public");
@@ -13,34 +14,61 @@ app.use(express.static(publicDir));
 const httpServer = createServer(app);
 const io = new Server(httpServer);
 
-// Temporary state for the walking skeleton. Chunk 2 moves this into game.js.
-// Each buzz is { name, at }, where `at` is the server's clock in milliseconds.
-let buzzes = [];
+const state = createGame();
+
+// What every page may see. Rejoin codes are left out, so no one can read another
+// team's code in their browser. Chunk 3 replaces this with views.js.
+function publicState() {
+  const teams = Object.values(state.teams).map(({ id, name, side, score }) => ({ id, name, side, score }));
+  const buzzes = state.current.buzzes.map(({ teamId, at }) => ({ teamId, name: state.teams[teamId].name, at }));
+  return { teams, buzzes };
+}
+
+function broadcast() {
+  io.emit("state", publicState());
+}
+
+// Reply only with what the page needs, never the whole team object.
+function teamReply(result) {
+  if (!result.ok) return { ok: false, error: result.error };
+  const { id, name, side, code } = result.team;
+  return { ok: true, teamId: id, name, side, code };
+}
+
+function joinTeamRoom(socket, team) {
+  socket.join(`team:${team.id}`);
+  socket.data.teamId = team.id;
+}
 
 io.on("connection", (socket) => {
-  console.log("Page connected:", socket.id);
+  socket.emit("state", publicState());
 
-  // A page that joins late still gets the current list straight away.
-  socket.emit("state", { buzzes });
-
-  socket.on("team:buzz", (data) => {
-    const name = String(data?.name ?? "").trim();
-    if (name === "") return;
-    if (buzzes.some((b) => b.name === name)) return;
-
-    buzzes.push({ name, at: Date.now() });
-    console.log("Buzz:", name);
-    io.emit("state", { buzzes });
+  socket.on("team:register", (details, reply) => {
+    const result = registerTeam(state, details ?? {});
+    if (result.ok) {
+      joinTeamRoom(socket, result.team);
+      console.log(`Team registered: ${result.team.name} (${result.team.side}) code ${result.team.code}`);
+    }
+    if (typeof reply === "function") reply(teamReply(result));
+    if (result.ok) broadcast();
   });
 
-  // Temporary: anyone can reset. The admin page takes this over later.
+  socket.on("team:rejoin", (details, reply) => {
+    const result = rejoinTeam(state, details?.code);
+    if (result.ok) joinTeamRoom(socket, result.team);
+    if (typeof reply === "function") reply(teamReply(result));
+  });
+
+  socket.on("team:buzz", () => {
+    if (!socket.data.teamId) return;
+    const result = buzz(state, socket.data.teamId, Date.now());
+    if (result.ok) broadcast();
+  });
+
+  // Temporary: anyone can clear the buzzes. The admin page takes this over in Chunk 3.
   socket.on("reset", () => {
-    buzzes = [];
-    io.emit("state", { buzzes });
-  });
-
-  socket.on("disconnect", (reason) => {
-    console.log("Page disconnected:", socket.id, reason);
+    clearBuzzes(state);
+    broadcast();
   });
 });
 

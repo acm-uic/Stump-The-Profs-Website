@@ -1,20 +1,47 @@
 // All game rules live here. Nothing in this file knows about sockets or browsers:
 // every function takes the state object, changes it, and gives back a result
 // object, either { ok: true, ... } or { ok: false, error }.
+//
+// A question moves through phases:
+//   lobby -> preview (question shown) -> open (buzzers live) -> answering (a team has the floor)
+//         -> revealed (answer shown) -> preview (next question) ...
+// Every action first checks it is allowed in the current phase.
+
+import { pointsFor } from "./scoring.js";
 
 const SIDES = ["student", "prof"];
 const CODE_ALPHABET = "ABCDEFGHJKLMNPQRSTUVWXYZ23456789"; // no O/0, I/1 look-alikes
 const MAX_NAME_LENGTH = 30;
 
-export function createGame() {
+function freshCurrent() {
+  return {
+    openedAt: null,       // server time the buzzers opened
+    buzzes: [],           // { teamId, at } in arrival order
+    attempted: [],        // team ids that have answered aloud
+    activeTeamId: null,   // team with the floor
+    answeringSince: null, // when that team got the floor
+    winnerTeamId: null,
+    pointsAwarded: 0,
+  };
+}
+
+export function createGame(questions = []) {
   return {
     phase: "lobby",
+    questions,
+    questionIndex: -1,
     teams: {},
     nextJoinOrder: 1,
     registrationOpen: true,
-    current: { buzzes: [] },
+    current: freshCurrent(),
   };
 }
+
+export function currentQuestion(state) {
+  return state.questions[state.questionIndex] ?? null;
+}
+
+// ---- Teams --------------------------------------------------------------
 
 export function registerTeam(state, { name, side } = {}) {
   const cleanName = typeof name === "string" ? name.trim() : "";
@@ -52,20 +79,87 @@ export function rejoinTeam(state, code) {
   return { ok: true, team };
 }
 
-export function buzz(state, teamId, now) {
-  if (!state.teams[teamId]) return { ok: false, error: "Unknown team" };
-  if (state.current.buzzes.some((b) => b.teamId === teamId)) {
-    return { ok: false, error: "Already buzzed" };
+// ---- Question phases ------------------------------------------------------
+
+export function showQuestion(state, index) {
+  if (state.phase !== "lobby" && state.phase !== "revealed") {
+    return { ok: false, error: "Finish the current question first" };
   }
-  state.current.buzzes.push({ teamId, at: now });
+  if (state.questions.length === 0) return { ok: false, error: "There are no questions loaded" };
+  const target = index ?? state.questionIndex + 1;
+  if (!Number.isInteger(target) || target < 0 || target >= state.questions.length) {
+    return { ok: false, error: "There is no question at that position" };
+  }
+  state.questionIndex = target;
+  state.current = freshCurrent();
+  state.phase = "preview";
   return { ok: true };
 }
 
-// Temporary, for the display's Reset button. Chunk 3 replaces it with real question phases.
-export function clearBuzzes(state) {
-  state.current.buzzes = [];
+export function openBuzzers(state, now) {
+  if (state.phase !== "preview") return { ok: false, error: "Show a question first" };
+  state.current.openedAt = now;
+  state.phase = "open";
   return { ok: true };
 }
+
+export function buzz(state, teamId, now) {
+  if (state.phase !== "open" && state.phase !== "answering") {
+    return { ok: false, error: "Buzzers are not open" };
+  }
+  const team = state.teams[teamId];
+  if (!team) return { ok: false, error: "Unknown team" };
+  const current = state.current;
+  if (current.buzzes.some((b) => b.teamId === teamId)) return { ok: false, error: "Already buzzed" };
+
+  current.buzzes.push({ teamId, at: now });
+
+  // The first buzz wins the floor. Later buzzes still count: Chunk 4's steal order uses them.
+  if (current.activeTeamId === null) {
+    current.activeTeamId = teamId;
+    current.answeringSince = now;
+    team.stats.buzzesWon += 1;
+    team.stats.reactionTimes.push(now - current.openedAt);
+    state.phase = "answering";
+  }
+  return { ok: true };
+}
+
+export function judge(state, correct, now) {
+  if (state.phase !== "answering") return { ok: false, error: "No team is answering" };
+  if (typeof correct !== "boolean") return { ok: false, error: "Judge needs correct: true or false" };
+
+  const current = state.current;
+  const team = state.teams[current.activeTeamId];
+  current.attempted.push(team.id);
+
+  if (correct) {
+    const points = pointsFor(currentQuestion(state));
+    team.score += points;
+    team.stats.correct += 1;
+    current.winnerTeamId = team.id;
+    current.pointsAwarded = points;
+  } else {
+    team.stats.wrong += 1;
+    // Chunk 4: pass the floor to the next team in the steal order instead of ending.
+  }
+  current.activeTeamId = null;
+  current.answeringSince = null;
+  state.phase = "revealed";
+  return { ok: true };
+}
+
+export function reveal(state) {
+  if (state.phase !== "open" && state.phase !== "answering") {
+    return { ok: false, error: "Nothing to reveal right now" };
+  }
+  state.current.activeTeamId = null;
+  state.current.answeringSince = null;
+  state.phase = "revealed";
+  return { ok: true };
+}
+
+// ---- Helpers --------------------------------------------------------------
 
 function makeCode(state) {
   const used = new Set(Object.values(state.teams).map((t) => t.code));

@@ -4,23 +4,26 @@
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>Player · Stump the Profs</title>
+  <link rel="stylesheet" href="/style.css">
   <style>
-    body { font-family: system-ui, sans-serif; max-width: 30rem; margin: 2rem auto; padding: 0 1rem; text-align: center; }
+    body { max-width: 32rem; text-align: center; }
     input[type="text"] { font-size: 1.25rem; padding: 0.5rem; width: 100%; box-sizing: border-box; }
     fieldset { border: none; margin: 1rem 0; font-size: 1.15rem; }
     label { margin: 0 0.75rem; }
     #register button { font-size: 1.25rem; padding: 0.6rem 1.5rem; }
     #error { color: #d62828; min-height: 1.5em; }
-    #buzz { margin-top: 1.5rem; width: 100%; height: 12rem; font-size: 3rem; font-weight: bold;
+    #question { text-align: left; }
+    #buzz { margin-top: 1rem; width: 100%; height: 10rem; font-size: 3rem; font-weight: bold;
             border: none; border-radius: 1rem; background: #d62828; color: white; cursor: pointer; }
-    #buzz:active { transform: scale(0.97); }
-    .code { font-family: ui-monospace, monospace; font-size: 1.5rem; letter-spacing: 0.2em; background: #f1f1f1; padding: 0.2rem 0.6rem; border-radius: 0.3rem; }
-    #status, #connection { color: #666; }
+    #buzz:disabled { background: #bbb; cursor: not-allowed; }
+    #buzz:not(:disabled):active { transform: scale(0.97); }
+    #status { font-size: 1.25rem; font-weight: 600; min-height: 1.5em; }
+    #countdown { color: #d62828; }
   </style>
 </head>
 <body>
   <h1>Stump the Profs</h1>
-  <p id="connection">Connecting…</p>
+  <p class="connection" id="connection">Connecting…</p>
 
   <form id="register" hidden>
     <input id="team-name" type="text" placeholder="Team name" maxlength="30" autocomplete="off">
@@ -34,8 +37,10 @@
 
   <section id="play" hidden>
     <h2 id="team-label"></h2>
-    <p>Rejoin code: <span class="code" id="code"></span><br><small>Write this down. It gets your team back if this laptop restarts.</small></p>
-    <button id="buzz">BUZZ</button>
+    <p>Score: <strong id="score">0</strong> · Rejoin code: <span class="code" id="code"></span></p>
+    <p><span class="phase" id="phase"></span> <span id="countdown"></span></p>
+    <div id="question"></div>
+    <button id="buzz" disabled>BUZZ</button>
     <p id="status"></p>
   </section>
 

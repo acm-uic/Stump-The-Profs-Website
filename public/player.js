@@ -1,38 +1,25 @@
-// Start on a WebSocket. Socket.IO's default starts on HTTP polling and upgrades
-// later, and a buzz sent during that upgrade can arrive after a later buzz.
-const socket = io({ transports: ["websocket", "polling"] });
+import { connect, PHASE_LABELS, SIDE_NAMES, renderQuestion, startCountdown } from "/common.js";
 
+const socket = connect();
+const $ = (selector) => document.querySelector(selector);
 const CODE_KEY = "teamCode";
-const SIDE_NAMES = { student: "Students", prof: "Professors" };
-
-const connection = document.querySelector("#connection");
-const registerForm = document.querySelector("#register");
-const errorText = document.querySelector("#error");
-const playSection = document.querySelector("#play");
-const status = document.querySelector("#status");
-
-let myTeamId = null;
-let lastState = null; // the newest state from the server, kept so we can redraw after rejoining
 
 function showRegister() {
-  myTeamId = null;
-  registerForm.hidden = false;
-  playSection.hidden = true;
+  $("#register").hidden = false;
+  $("#play").hidden = true;
 }
 
-function showPlay({ teamId, name, side, code }) {
-  myTeamId = teamId;
-  document.querySelector("#team-label").textContent = `${name} · ${SIDE_NAMES[side]}`;
-  document.querySelector("#code").textContent = code;
-  registerForm.hidden = true;
-  playSection.hidden = false;
-  render();
+function showPlay({ name, side, code }) {
+  $("#team-label").textContent = `${name} · ${SIDE_NAMES[side]}`;
+  $("#code").textContent = code;
+  $("#register").hidden = true;
+  $("#play").hidden = false;
 }
 
 // Runs on the first connection AND after every reconnect (refresh, Wi-Fi blip,
 // laptop waking up). A reconnect is a brand new socket, so we must rejoin each time.
 socket.on("connect", () => {
-  connection.textContent = "Connected";
+  $("#connection").textContent = "Connected";
   const savedCode = localStorage.getItem(CODE_KEY);
   if (!savedCode) return showRegister();
 
@@ -44,37 +31,47 @@ socket.on("connect", () => {
     }
   });
 });
+socket.on("disconnect", () => { $("#connection").textContent = "Reconnecting…"; });
 
-socket.on("disconnect", () => { connection.textContent = "Reconnecting…"; });
-
-registerForm.addEventListener("submit", (event) => {
+$("#register").addEventListener("submit", (event) => {
   event.preventDefault(); // stop the browser reloading the page
-  const name = document.querySelector("#team-name").value;
+  const name = $("#team-name").value;
   const side = document.querySelector('input[name="side"]:checked')?.value;
 
   socket.emit("team:register", { name, side }, (reply) => {
     if (!reply.ok) {
-      errorText.textContent = reply.error;
+      $("#error").textContent = reply.error;
       return;
     }
-    errorText.textContent = "";
+    $("#error").textContent = "";
     localStorage.setItem(CODE_KEY, reply.code);
     showPlay(reply);
   });
 });
 
-document.querySelector("#buzz").addEventListener("click", () => {
-  socket.emit("team:buzz");
-});
+$("#buzz").addEventListener("click", () => socket.emit("team:buzz"));
 
-// Show this team's own place, using only the state the server sends.
-function render() {
-  if (!myTeamId || !lastState) return;
-  const place = lastState.buzzes.findIndex((b) => b.teamId === myTeamId);
-  status.textContent = place === 0 ? "You were FIRST!" : place > 0 ? `You were #${place + 1}` : "";
-}
+// Only registered teams receive "state" (their own team view). Redraw from it.
+socket.on("state", (view) => {
+  const { me, phase } = view;
+  $("#score").textContent = me.score;
+  $("#phase").textContent = PHASE_LABELS[phase];
+  $("#phase").className = `phase ${phase}`;
+  renderQuestion($("#question"), view.question);
 
-socket.on("state", (state) => {
-  lastState = state;
-  render();
+  const myPlace = view.buzzes.findIndex((b) => b.teamId === me.id);
+  const iHaveFloor = view.floorTeam?.id === me.id;
+  $("#buzz").disabled = !(phase === "open" || phase === "answering") || myPlace >= 0;
+  startCountdown($("#countdown"), iHaveFloor ? view.answerRemainingMs : null);
+
+  let status = "";
+  if (iHaveFloor) status = "You have the floor! Answer out loud.";
+  else if (view.floorTeam) status = `${view.floorTeam.name} is answering`;
+  if (myPlace > 0 && !iHaveFloor) status += ` · you buzzed #${myPlace + 1}`;
+  if (phase === "revealed") {
+    status = view.result.winner?.id === me.id ? `Correct! +${view.result.points}`
+      : view.result.winner ? `${view.result.winner.name} got it`
+      : "Nobody got it";
+  }
+  $("#status").textContent = status;
 });

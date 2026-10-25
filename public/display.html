@@ -4,31 +4,32 @@
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>Display · Stump the Profs</title>
+  <link rel="stylesheet" href="/style.css">
   <style>
-    body { font-family: system-ui, sans-serif; max-width: 50rem; margin: 2rem auto; padding: 0 1rem; }
-    #connection { font-size: 0.9rem; color: #666; }
-    .sides { display: grid; grid-template-columns: 1fr 1fr; gap: 1rem; }
-    .sides ul { list-style: none; padding: 0; font-size: 1.25rem; }
-    .empty-note { color: #888; }
-    ol { font-size: 2rem; padding-left: 2.5rem; }
-    #buzzes li:first-child { font-weight: bold; color: #d62828; }
-    .gap { color: #888; font-size: 1.25rem; margin-left: 0.5rem; }
+    body { max-width: 56rem; }
+    .sides { display: grid; grid-template-columns: 1fr 1fr; gap: 2rem; }
+    #floor { font-size: 1.5rem; font-weight: bold; }
+    #countdown { font-size: 1.5rem; color: #d62828; margin-left: 0.5rem; }
+    ol#buzzes { font-size: 1.25rem; }
+    .gap { color: #888; font-size: 1rem; margin-left: 0.5rem; }
   </style>
 </head>
 <body>
   <h1>Stump the Profs</h1>
-  <p id="connection">Connecting…</p>
+  <p class="connection" id="connection">Connecting…</p>
+
+  <p><span class="phase" id="phase"></span> <span id="progress"></span></p>
+  <div id="question"></div>
+  <p class="result" id="result"></p>
+  <p><span id="floor"></span><span id="countdown"></span></p>
+
+  <h2>Buzzes</h2>
+  <ol id="buzzes"></ol>
 
   <div class="sides">
-    <section><h2>Students</h2><ul id="students"></ul></section>
-    <section><h2>Professors</h2><ul id="profs"></ul></section>
+    <section><h2>Students</h2><ul class="teams" id="students"></ul></section>
+    <section><h2>Professors</h2><ul class="teams" id="profs"></ul></section>
   </div>
-
-  <h2>Who buzzed first?</h2>
-  <ol id="buzzes"></ol>
-  <p id="no-buzzes" class="empty-note">No buzzes yet.</p>
-  <!-- Temporary: removed when the admin page takes over (Chunk 7). -->
-  <button id="reset">Reset buzzes</button>
 
   <script src="/socket.io/socket.io.js"></script>
   <script type="module" src="/display.js"></script>

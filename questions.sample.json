@@ -1,0 +1,32 @@
+[
+  {
+    "id": "sample-free-1",
+    "type": "free",
+    "category": "Hardware",
+    "prompt": "What does the C in CPU stand for?",
+    "answer": "Central"
+  },
+  {
+    "id": "sample-mc-1",
+    "type": "mc",
+    "category": "Algorithms",
+    "prompt": "Which of these sorts is O(n log n) in the worst case?",
+    "choices": ["Quicksort", "Merge sort", "Bubble sort", "Insertion sort"],
+    "answer": 1
+  },
+  {
+    "id": "sample-tf-1",
+    "type": "tf",
+    "category": "Python",
+    "prompt": "Python lists are immutable.",
+    "answer": false
+  },
+  {
+    "id": "sample-tf-2",
+    "type": "tf",
+    "category": "Networking",
+    "prompt": "HTTP status 404 means the server crashed.",
+    "answer": false,
+    "points": 150
+  }
+]

@@ -1,0 +1,60 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Admin · Stump the Profs</title>
+  <link rel="stylesheet" href="/style.css">
+  <style>
+    body { max-width: 60rem; }
+    .layout { display: grid; grid-template-columns: 2fr 1fr; gap: 2rem; }
+    @media (max-width: 760px) { .layout { grid-template-columns: 1fr; } }
+    .controls { display: flex; flex-wrap: wrap; gap: 0.5rem; margin: 1rem 0; }
+    .controls button { font-size: 1.05rem; padding: 0.6rem 1rem; border-radius: 0.4rem; border: 1px solid #999; background: #f7f7f7; cursor: pointer; }
+    .controls button:disabled { opacity: 0.35; cursor: not-allowed; }
+    #correct:not(:disabled) { background: #2a9d4b; color: #fff; border-color: #2a9d4b; }
+    #wrong:not(:disabled) { background: #d62828; color: #fff; border-color: #d62828; }
+    #message { min-height: 1.5em; color: #d62828; }
+    .answer-box { background: #fff8e1; border: 1px solid #f2a900; border-radius: 0.4rem; padding: 0.5rem 0.75rem; }
+    #question-list { font-size: 0.9rem; padding-left: 1.5rem; }
+    #question-list li.played { color: #999; }
+    #question-list li.current { font-weight: bold; }
+  </style>
+</head>
+<body>
+  <h1>Host controls</h1>
+  <p class="connection" id="connection">Connecting…</p>
+
+  <div class="layout">
+    <main>
+      <p><span class="phase" id="phase"></span> <span id="progress"></span> <span id="countdown"></span></p>
+      <div id="question"></div>
+      <p class="answer-box" id="answer-box" hidden>Answer: <strong id="answer"></strong></p>
+      <p id="floor"></p>
+      <p class="result" id="result"></p>
+
+      <div class="controls">
+        <button id="show">Show next question</button>
+        <button id="open">Open buzzers</button>
+        <button id="correct">Correct</button>
+        <button id="wrong">Wrong</button>
+        <button id="reveal">Reveal answer</button>
+      </div>
+      <p id="message"></p>
+
+      <h2>Buzzes</h2>
+      <ol id="buzzes"></ol>
+    </main>
+
+    <aside>
+      <h2>Teams</h2>
+      <ul class="teams" id="teams"></ul>
+      <h2>Questions</h2>
+      <ol id="question-list"></ol>
+    </aside>
+  </div>
+
+  <script src="/socket.io/socket.io.js"></script>
+  <script type="module" src="/admin.js"></script>
+</body>
+</html>

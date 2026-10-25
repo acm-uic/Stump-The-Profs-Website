@@ -15,6 +15,18 @@ export const TYPE_LABELS = { free: "Free response", mc: "Multiple choice", tf: "
 
 export const letter = (i) => String.fromCharCode(65 + i); // 0 -> "A"
 
+// 1 -> "1st", 2 -> "2nd", 11 -> "11th", 23 -> "23rd"
+export function ordinal(n) {
+  const lastTwo = n % 100;
+  if (lastTwo >= 11 && lastTwo <= 13) return `${n}th`;
+  return n + ({ 1: "st", 2: "nd", 3: "rd" }[n % 10] ?? "th");
+}
+
+// 640 -> "640 ms", 1240 -> "1.2 s"
+export function formatMs(ms) {
+  return ms < 1000 ? `${ms} ms` : `${(ms / 1000).toFixed(1)} s`;
+}
+
 // The correct answer as text, e.g. "B. Merge sort" or "False".
 export function answerText(question) {
   if (!question || !("answer" in question)) return "";

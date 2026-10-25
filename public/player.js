@@ -1,8 +1,12 @@
-import { connect, PHASE_LABELS, SIDE_NAMES, letter, renderQuestion, startCountdown } from "/common.js";
+import {
+  connect, PHASE_LABELS, SIDE_NAMES, TYPE_LABELS, letter, renderQuestion, startCountdown, formatMs, ordinal,
+} from "/common.js";
 
 const socket = connect();
 const $ = (selector) => document.querySelector(selector);
 const CODE_KEY = "teamCode";
+
+// ---- Joining ----
 
 function showRegister() {
   $("#register").hidden = false;
@@ -49,9 +53,41 @@ $("#register").addEventListener("submit", (event) => {
   });
 });
 
+// ---- Buzzing ----
+
 $("#buzz").addEventListener("click", () => socket.emit("team:buzz"));
 
+document.addEventListener("keydown", (event) => {
+  if (event.code !== "Space" || event.repeat) return; // holding space sends one buzz
+  if (event.target.tagName === "INPUT") return;       // typing a lock-in must not buzz
+  event.preventDefault();                              // stop the page scrolling
+  if (!$("#buzz").disabled) socket.emit("team:buzz");
+});
+
+// The label for each buzzer state. The server decides the state; the page only draws it.
+function buzzerLabel(view) {
+  const { buzzer, place, floorTeam } = view;
+  const line = place === 1 ? "you're next if they miss" : place ? `you're ${ordinal(place)} in line` : "";
+  switch (buzzer) {
+    case "locked": return ["WAIT", view.phase === "preview" ? "Get ready…" : "Waiting for the host"];
+    case "ready": return ["BUZZ", floorTeam ? `${floorTeam.name} is answering · ${line || "buzz to get in line"}` : "Buzzers are open!"];
+    case "buzzed": return ["IN LINE", `${floorTeam.name} is answering · ${line}`];
+    case "floor": return ["YOUR TURN", "Answer out loud!"];
+    case "tried": return ["ANSWERED", floorTeam ? `${floorTeam.name} is answering` : "Waiting for the others"];
+    case "over": return ["DONE", resultLine(view)];
+    default: return ["", ""];
+  }
+}
+
+function resultLine(view) {
+  const { result, me } = view;
+  if (!result) return "";
+  if (result.winner?.id === me.id) return `Correct! +${result.points}`;
+  return result.winner ? `${result.winner.name} got it` : "Nobody got it";
+}
+
 // ---- Lock-ins ----
+
 function sendLockIn(answer) {
   $("#lockin-error").textContent = "";
   socket.emit("team:lockin", { answer }, (reply) => {
@@ -63,13 +99,12 @@ $("#lockin-free").addEventListener("submit", (event) => {
   sendLockIn($("#lockin-text").value);
 });
 
-// Builds the choice buttons for the current question, only when the question changes,
-// so a button is never redrawn under someone's finger.
+// Builds the choice buttons only when the question changes, so a button is never
+// redrawn under someone's finger.
 let builtFor = null;
 function buildLockInOptions(view) {
-  const key = `${view.questionNumber}`;
-  if (builtFor === key) return;
-  builtFor = key;
+  if (builtFor === view.questionNumber) return;
+  builtFor = view.questionNumber;
   $("#lockin-text").value = "";
   const q = view.question;
   const options =
@@ -82,13 +117,11 @@ function buildLockInOptions(view) {
     button.addEventListener("click", () => sendLockIn(value));
     return button;
   }));
-  $("#lockin-free").hidden = q?.type !== "free";
 }
 
-function lockInText(view, answer) {
-  const q = view.question;
-  if (q.type === "mc") return `${letter(answer)}. ${q.choices[answer]}`;
-  if (q.type === "tf") return answer ? "True" : "False";
+function lockInText(question, answer) {
+  if (question.type === "mc") return `${letter(answer)}. ${question.choices[answer]}`;
+  if (question.type === "tf") return answer ? "True" : "False";
   return `"${answer}"`;
 }
 
@@ -104,7 +137,7 @@ function renderLockIn(view) {
 
   let text = "";
   if (mine) {
-    text = `Locked in: ${lockInText(view, mine.answer)}`;
+    text = `Locked in: ${lockInText(view.question, mine.answer)}`;
     if (view.phase === "revealed") {
       if (mine.awarded) text += ` · Right! +${view.lockInPoints}`;
       else if (mine.correct === false) text += " · Not this time";
@@ -114,35 +147,79 @@ function renderLockIn(view) {
   $("#lockin-result").textContent = text;
 }
 
-// Only registered teams receive "state" (their own team view). Redraw from it.
+// ---- Scores, stats, history ----
+
+function renderScores(view) {
+  const { me, sides } = view;
+  $("#score").textContent = me.score.toLocaleString();
+  $("#rank").textContent = ordinal(me.rank);
+  $("#rank-of").textContent = `of ${me.rankOf} teams`;
+
+  const mine = sides[me.side];
+  const theirs = sides[me.side === "student" ? "prof" : "student"];
+  $("#lead").textContent = mine === theirs ? "Tied" : mine > theirs ? `+${mine - theirs}` : `−${theirs - mine}`;
+
+  const total = sides.student + sides.prof;
+  const studentShare = total === 0 ? 50 : (sides.student / total) * 100;
+  $("#tug-students").style.width = `${studentShare}%`;
+  $("#tug-profs").style.width = `${100 - studentShare}%`;
+  $("#tug-students").textContent = `Students ${sides.student.toLocaleString()}`;
+  $("#tug-profs").textContent = `Profs ${sides.prof.toLocaleString()}`;
+}
+
+function renderStats(stats) {
+  const show = (id, value) => { $(id).textContent = value ?? "—"; };
+  show("#st-buzzes", stats.buzzesWon);
+  show("#st-accuracy", stats.accuracy == null ? null : `${stats.accuracy}%`);
+  show("#st-avg", stats.avgReactionMs == null ? null : formatMs(stats.avgReactionMs));
+  show("#st-fastest", stats.fastestReactionMs == null ? null : formatMs(stats.fastestReactionMs));
+  show("#st-correct", stats.correct);
+  show("#st-wrong", stats.wrong);
+  show("#st-steals", stats.steals);
+  show("#st-lockins", stats.lockInHits);
+}
+
+function renderHistory(history) {
+  if (history.length === 0) {
+    const li = document.createElement("li");
+    li.className = "empty-note";
+    li.textContent = "No questions finished yet";
+    $("#history").replaceChildren(li);
+    return;
+  }
+  $("#history").replaceChildren(...[...history].reverse().map((h) => {
+    const li = document.createElement("li");
+    const left = document.createElement("span");
+    left.textContent = `Q${h.questionNumber} · ${TYPE_LABELS[h.type]}`;
+    const right = document.createElement("span");
+    right.className = `r-${h.result}`;
+    right.textContent = h.points ? `${h.result} +${h.points}` : h.result;
+    li.append(left, right);
+    return li;
+  }));
+}
+
+// ---- Draw everything from the team view ----
+
 socket.on("state", (view) => {
-  const { me, phase } = view;
-  $("#score").textContent = me.score;
-  $("#phase").textContent = PHASE_LABELS[phase];
-  $("#phase").className = `phase ${phase}`;
+  $("#phase").textContent = PHASE_LABELS[view.phase];
+  $("#phase").className = `phase ${view.phase}`;
+  startCountdown($("#countdown"), view.buzzer === "floor" ? view.answerRemainingMs : null);
   renderQuestion($("#question"), view.question);
 
-  const myPlace = view.buzzes.findIndex((b) => b.teamId === me.id);
-  const iHaveFloor = view.floorTeam?.id === me.id;
-  const iTried = view.attempted.some((t) => t.id === me.id);
-  // Teams can still buzz while someone is answering, to claim a better place in the steal order.
-  $("#buzz").disabled = !(phase === "open" || phase === "answering") || myPlace >= 0 || iHaveFloor || iTried;
-  startCountdown($("#countdown"), iHaveFloor ? view.answerRemainingMs : null);
+  const [label, sub] = buzzerLabel(view);
+  const buzzButton = $("#buzz");
+  buzzButton.className = view.buzzer;
+  buzzButton.disabled = view.buzzer !== "ready";
+  buzzButton.replaceChildren(label);
+  if (sub) {
+    const small = document.createElement("small");
+    small.textContent = sub;
+    buzzButton.append(small);
+  }
 
-  let status = "";
-  if (iHaveFloor) status = "You have the floor! Answer out loud.";
-  else if (view.floorTeam) status = `${view.floorTeam.name} is answering`;
-  const lineIndex = view.upNext.findIndex((t) => t.id === me.id);
-  if (!iHaveFloor && phase === "answering") {
-    if (iTried) status += " · you've already answered";
-    else if (lineIndex === 0) status += " · you're NEXT if they miss";
-    else if (lineIndex > 0) status += ` · you're #${lineIndex + 1} in line`;
-  }
-  if (phase === "revealed") {
-    status = view.result.winner?.id === me.id ? `Correct! +${view.result.points}`
-      : view.result.winner ? `${view.result.winner.name} got it`
-      : "Nobody got it";
-  }
-  $("#status").textContent = status;
   renderLockIn(view);
+  renderScores(view);
+  renderStats(view.stats);
+  renderHistory(view.history);
 });

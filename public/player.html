@@ -6,20 +6,40 @@
   <title>Player · Stump the Profs</title>
   <link rel="stylesheet" href="/style.css">
   <style>
-    body { max-width: 32rem; text-align: center; }
+    body { max-width: 34rem; text-align: center; }
     input[type="text"] { font-size: 1.25rem; padding: 0.5rem; width: 100%; box-sizing: border-box; }
     fieldset { border: none; margin: 1rem 0; font-size: 1.15rem; }
     label { margin: 0 0.75rem; }
     #register button { font-size: 1.25rem; padding: 0.6rem 1.5rem; }
     #error { color: #d62828; min-height: 1.5em; }
+    header.team { display: flex; justify-content: space-between; align-items: baseline; gap: 0.5rem; }
+    header.team h2 { margin: 0; text-align: left; }
     #question { text-align: left; }
-    #buzz { margin-top: 1rem; width: 100%; height: 10rem; font-size: 3rem; font-weight: bold;
-            border: none; border-radius: 1rem; background: #d62828; color: white; cursor: pointer; }
-    #buzz:disabled { background: #bbb; cursor: not-allowed; }
-    #buzz:not(:disabled):active { transform: scale(0.97); }
-    #status { font-size: 1.25rem; font-weight: 600; min-height: 1.5em; }
-    #countdown { color: #d62828; }
-    #lockin { margin-top: 1.5rem; padding: 1rem; border: 2px dashed #888; border-radius: 0.75rem; }
+
+    /* The buzzer: one colour per state, chosen by the server's view. */
+    #buzz { margin-top: 0.5rem; width: 100%; min-height: 9rem; padding: 1rem; border: none; border-radius: 1rem;
+            font-size: 2.6rem; font-weight: 800; color: #fff; cursor: pointer; line-height: 1.1; }
+    #buzz small { display: block; font-size: 1rem; font-weight: 600; margin-top: 0.4rem; }
+    #buzz:disabled { cursor: default; }
+    #buzz.locked { background: #9aa0a6; }
+    #buzz.ready  { background: #d62828; }
+    #buzz.ready:active { transform: scale(0.97); }
+    #buzz.buzzed { background: #e76f51; }
+    #buzz.floor  { background: #f2a900; color: #000; }
+    #buzz.tried  { background: #6c757d; }
+    #buzz.over   { background: #2a9d4b; }
+    #buzz-hint { color: #888; font-size: 0.85rem; margin: 0.3rem 0 0; }
+
+    .scores { display: grid; grid-template-columns: repeat(3, 1fr); gap: 0.5rem; margin: 1rem 0; }
+    .scores div { background: #f5f5f5; border-radius: 0.5rem; padding: 0.5rem; }
+    .scores strong { display: block; font-size: 1.6rem; }
+    .scores span { color: #666; font-size: 0.85rem; }
+    .tug { display: flex; height: 1.4rem; border-radius: 0.7rem; overflow: hidden; background: #eee; font-size: 0.8rem; font-weight: bold; color: #fff; }
+    .tug div { display: flex; align-items: center; padding: 0 0.5rem; transition: width 0.3s; white-space: nowrap; }
+    #tug-students { background: #1d70b8; }
+    #tug-profs { background: #8e2c90; justify-content: flex-end; }
+
+    #lockin { margin-top: 1rem; padding: 1rem; border: 2px dashed #888; border-radius: 0.75rem; }
     #lockin h3 { margin: 0 0 0.25rem; }
     #lockin-options { display: grid; gap: 0.4rem; margin-top: 0.5rem; }
     #lockin-options button { font-size: 1.1rem; padding: 0.6rem; border-radius: 0.4rem; border: 1px solid #888; background: #f7f7f7; cursor: pointer; text-align: left; }
@@ -28,6 +48,16 @@
     #lockin-free button { font-size: 1.1rem; padding: 0.5rem 1rem; }
     #lockin-result { font-weight: 600; }
     #lockin-error { color: #d62828; }
+
+    .stats { display: grid; grid-template-columns: repeat(4, 1fr); gap: 0.4rem; }
+    .stats div { background: #f5f5f5; border-radius: 0.5rem; padding: 0.4rem 0.2rem; }
+    .stats strong { display: block; font-size: 1.2rem; }
+    .stats span { color: #666; font-size: 0.75rem; }
+    #history { list-style: none; padding: 0; text-align: left; }
+    #history li { display: flex; justify-content: space-between; padding: 0.25rem 0; border-bottom: 1px solid #eee; }
+    .r-Correct, .r-Steal, .r-Lock-in { color: #2a9d4b; font-weight: 600; }
+    .r-Wrong { color: #d62828; }
+    footer { color: #888; font-size: 0.85rem; margin-top: 1.5rem; }
   </style>
 </head>
 <body>
@@ -45,12 +75,14 @@
   </form>
 
   <section id="play" hidden>
-    <h2 id="team-label"></h2>
-    <p>Score: <strong id="score">0</strong> · Rejoin code: <span class="code" id="code"></span></p>
-    <p><span class="phase" id="phase"></span> <span id="countdown"></span></p>
+    <header class="team">
+      <h2 id="team-label"></h2>
+      <span><span class="phase" id="phase"></span> <span id="countdown"></span></span>
+    </header>
+
     <div id="question"></div>
-    <button id="buzz" disabled>BUZZ</button>
-    <p id="status"></p>
+    <button id="buzz" class="locked" disabled>WAIT</button>
+    <p id="buzz-hint">Tip: you can also press the space bar.</p>
 
     <section id="lockin" hidden>
       <h3>Lock in an answer</h3>
@@ -63,6 +95,32 @@
       <p id="lockin-result"></p>
       <p id="lockin-error"></p>
     </section>
+
+    <div class="scores">
+      <div><strong id="score">0</strong><span>your score</span></div>
+      <div><strong id="rank">–</strong><span id="rank-of">rank</span></div>
+      <div><strong id="lead">–</strong><span>your side</span></div>
+    </div>
+    <div class="tug" aria-label="Students versus Professors total">
+      <div id="tug-students"></div><div id="tug-profs"></div>
+    </div>
+
+    <h3>Your stats</h3>
+    <div class="stats">
+      <div><strong id="st-buzzes">0</strong><span>buzzes won</span></div>
+      <div><strong id="st-accuracy">—</strong><span>accuracy</span></div>
+      <div><strong id="st-avg">—</strong><span>avg reaction</span></div>
+      <div><strong id="st-fastest">—</strong><span>fastest</span></div>
+      <div><strong id="st-correct">0</strong><span>correct</span></div>
+      <div><strong id="st-wrong">0</strong><span>wrong</span></div>
+      <div><strong id="st-steals">0</strong><span>steals</span></div>
+      <div><strong id="st-lockins">0</strong><span>lock-in hits</span></div>
+    </div>
+
+    <h3>History</h3>
+    <ul id="history"></ul>
+
+    <footer>Rejoin code: <span class="code" id="code"></span> · write it down in case this laptop restarts</footer>
   </section>
 
   <script src="/socket.io/socket.io.js"></script>

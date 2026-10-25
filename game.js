@@ -38,6 +38,7 @@ export function createGame(questions = []) {
     nextJoinOrder: 1,
     registrationOpen: true,
     current: freshCurrent(),
+    history: [], // one record per finished question, used for each team's history and stats
   };
 }
 
@@ -184,6 +185,16 @@ function endQuestion(state) {
   state.current.answeringSince = null;
   state.current.lockInsOpen = false;
   state.phase = "revealed";
+  const question = currentQuestion(state);
+  state.history.push({
+    questionNumber: state.questionIndex + 1,
+    type: question.type,
+    points: pointsFor(question),
+    lockInPoints: lockInPoints(question),
+    winnerTeamId: state.current.winnerTeamId,
+    attempted: [...state.current.attempted],
+    lockInsAwarded: [],
+  });
   settleLockIns(state);
 }
 
@@ -249,6 +260,11 @@ function settleLockIns(state) {
       team.stats.lockInHits -= 1;
       entry.awarded = false;
     }
+  }
+  // Keep this question's history record in step (the host may mark lock-ins after the reveal).
+  const record = state.history.at(-1);
+  if (record && state.phase === "revealed") {
+    record.lockInsAwarded = Object.keys(current.lockIns).filter((id) => current.lockIns[id].awarded);
   }
 }
 

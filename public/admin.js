@@ -65,6 +65,44 @@ $("#reset").addEventListener("click", () => {
   }
 });
 
+// ---- Backups and questions ----
+
+function toolMessage(text, ok) {
+  $("#tool-message").textContent = text;
+  $("#tool-message").className = ok ? "ok" : "bad";
+}
+
+// Export: the server sends the whole game; the browser saves it as a file.
+$("#export").addEventListener("click", () => {
+  socket.emit("admin:action", { type: "export" }, (reply) => {
+    if (!reply.ok) return toolMessage(reply.error, false);
+    const blob = new Blob([JSON.stringify(reply.data, null, 2)], { type: "application/json" });
+    const link = document.createElement("a");
+    link.href = URL.createObjectURL(blob);
+    link.download = `stump-backup-${new Date().toISOString().replace(/[:.]/g, "-")}.json`;
+    link.click();
+    URL.revokeObjectURL(link.href);
+    toolMessage("Backup downloaded", true);
+  });
+});
+
+// Upload: read the chosen file, check it is JSON, and let the server validate the questions.
+$("#upload").addEventListener("change", async () => {
+  const file = $("#upload").files[0];
+  $("#upload").value = ""; // so choosing the same file again still triggers
+  if (!file) return;
+  let questions;
+  try {
+    questions = JSON.parse(await file.text());
+  } catch (error) {
+    return toolMessage(`That file is not valid JSON: ${error.message}`, false);
+  }
+  socket.emit("admin:action", { type: "loadQuestions", questions }, (reply) => {
+    if (reply.ok) toolMessage(`Loaded ${reply.count} questions from ${file.name}`, true);
+    else toolMessage(reply.error, false);
+  });
+});
+
 // Keyboard shortcuts for the host. Clicking a disabled button does nothing, and the
 // server checks the phase anyway, so a double press cannot judge twice.
 const SHORTCUTS = { n: "#show", o: "#open", c: "#correct", w: "#wrong", r: "#reveal", z: "#undo" };

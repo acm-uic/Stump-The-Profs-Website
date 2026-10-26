@@ -2,7 +2,7 @@ import { test } from "node:test";
 import assert from "node:assert/strict";
 import {
   createGame, registerTeam, rejoinTeam, showQuestion, openBuzzers, buzz, judge, reveal, upNext,
-  lockIn, markLockIn, adjustScore, kickTeam, toggleRegistration,
+  lockIn, markLockIn, adjustScore, kickTeam, toggleRegistration, replaceQuestions,
 } from "../game.js";
 import { joinCrowd, predict, pick } from "../crowd.js";
 
@@ -352,4 +352,26 @@ test("toggleRegistration closes and reopens sign-ups", () => {
   assert.equal(registerTeam(state, { name: "Late", side: "prof" }).ok, false);
   toggleRegistration(state);
   assert.equal(registerTeam(state, { name: "Late", side: "prof" }).ok, true);
+});
+
+// ---- Uploading questions ------------------------------------------------------
+
+test("replaceQuestions swaps in a valid list, only before the first question", () => {
+  const { state } = gameWithTeams();
+  const fresh = [{ id: "n1", type: "tf", prompt: "New?", answer: true }];
+  assert.deepEqual(replaceQuestions(state, fresh), { ok: true, count: 1 });
+  assert.equal(state.questions, fresh);
+  showQuestion(state);
+  assert.equal(replaceQuestions(state, structuredClone(QUESTIONS)).ok, false);
+  assert.equal(state.questions, fresh);
+});
+
+test("a broken upload is refused with the validation message and changes nothing", () => {
+  const { state } = gameWithTeams();
+  const before = state.questions;
+  const result = replaceQuestions(state, [{ id: "b1", type: "mc", prompt: "?", choices: ["x", "y"], answer: 5 }]);
+  assert.equal(result.ok, false);
+  assert.match(result.error, /Question 1 \(id "b1"\): mc answer/);
+  assert.equal(state.questions, before);
+  assert.equal(replaceQuestions(state, "not a list").ok, false);
 });

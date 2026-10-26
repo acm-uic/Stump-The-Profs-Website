@@ -35,6 +35,10 @@ export const ADMIN_KEY = process.env.ADMIN_KEY;
 // Where the game is saved after every change.
 export const SAVE_PATH = process.env.SAVE_PATH ?? "data/state.json";
 
+// Where uploaded questions are kept. data/ is ignored by git and never goes into the
+// container image, so the answers stay off the public repo.
+export const QUESTIONS_PATH = process.env.QUESTIONS_PATH ?? "data/questions.json";
+
 // The address shown on the projector. Falls back to this laptop's Wi-Fi address.
 export const PUBLIC_URL = process.env.PUBLIC_URL;
 

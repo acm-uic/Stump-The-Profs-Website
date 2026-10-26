@@ -24,6 +24,10 @@
     .mark-right { color: #2a9d4b; } .mark-wrong { color: #d62828; } .mark-pending { color: #b07d00; }
     .tools { display: flex; flex-wrap: wrap; gap: 0.5rem; margin-bottom: 1rem; }
     #reset { border-color: #d62828; color: #d62828; }
+    .upload { font-size: 1.05rem; padding: 0.6rem 1rem; border-radius: 0.4rem; border: 1px solid #999; background: #f7f7f7; cursor: pointer; }
+    .upload input { display: none; }
+    #tool-message { min-height: 1.2em; margin-top: -0.5rem; }
+    #tool-message.ok { color: #2a9d4b; } #tool-message.bad { color: #d62828; }
     .team-row { display: grid; grid-template-columns: 1fr auto; gap: 0.25rem 0.5rem; padding: 0.4rem 0; border-bottom: 1px solid #eee; }
     .team-row .actions { grid-column: 1 / -1; display: flex; gap: 0.3rem; }
     .team-row input { width: 5.5rem; font-size: 0.95rem; padding: 0.2rem 0.3rem; }
@@ -76,7 +80,10 @@
         <button id="undo">Undo<kbd>Z</kbd></button>
         <button id="registration"></button>
         <button id="reset">Reset game…</button>
+        <button id="export">Export backup</button>
+        <label class="upload">Upload questions… <input id="upload" type="file" accept=".json,application/json"></label>
       </div>
+      <p id="tool-message"></p>
       <h2>Teams</h2>
       <div id="teams"></div>
       <h2>Questions</h2>

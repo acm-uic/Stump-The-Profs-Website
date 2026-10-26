@@ -8,6 +8,7 @@
 // Every action first checks it is allowed in the current phase.
 
 import { pointsFor, lockInPoints, autoCheck } from "./scoring.js";
+import { validateQuestions } from "./store.js";
 import { LOCKIN_MAX_LENGTH, MAX_ADJUST } from "./config.js";
 import { stealOrder } from "./turns.js";
 import { createCrowd, startQuestion, settleQuestion } from "./crowd.js";
@@ -106,6 +107,20 @@ export function kickTeam(state, teamId) {
   }
   delete state.teams[teamId];
   return { ok: true };
+}
+
+// Replace the question list with an uploaded one. Only before the first question, so
+// a half-played game never switches questions under people. (Reset first to reuse.)
+export function replaceQuestions(state, list) {
+  if (state.phase !== "lobby") return { ok: false, error: "Upload questions before the first question (Reset first if needed)" };
+  try {
+    validateQuestions(list);
+  } catch (error) {
+    return { ok: false, error: error.message };
+  }
+  state.questions = list;
+  state.questionIndex = -1;
+  return { ok: true, count: list.length };
 }
 
 export function toggleRegistration(state) {

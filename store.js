@@ -64,6 +64,10 @@ export function writeJsonAtomic(filePath, data) {
   fs.renameSync(temp, filePath);
 }
 
+export function saveQuestions(list, filePath) {
+  writeJsonAtomic(filePath, list);
+}
+
 export function saveState(state, filePath) {
   writeJsonAtomic(filePath, state);
 }

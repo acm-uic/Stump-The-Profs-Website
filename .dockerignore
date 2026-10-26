@@ -1,0 +1,13 @@
+# Never copied into the container image. data/ holds the real questions and the
+# saved game, and .env holds the local admin key: neither may end up in a public image.
+.git
+.github
+.env
+data
+node_modules
+deploy
+test
+*.log
+.DS_Store
+CLAUDE.md
+stump-the-profs-guide.md

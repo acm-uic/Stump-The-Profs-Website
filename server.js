@@ -7,12 +7,12 @@ import { createServer } from "node:http";
 import { Server } from "socket.io";
 import {
   createGame, registerTeam, rejoinTeam, showQuestion, openBuzzers, buzz, judge, reveal,
-  lockIn, markLockIn, adjustScore, kickTeam, toggleRegistration,
+  lockIn, markLockIn, adjustScore, kickTeam, toggleRegistration, replaceQuestions,
 } from "./game.js";
-import { loadQuestions, saveState, loadState } from "./store.js";
+import { loadQuestions, saveQuestions, saveState, loadState } from "./store.js";
 import { joinCrowd, rejoinCrowd, predict, pick, meView, createMeter, cheer, decayCheer } from "./crowd.js";
 import {
-  CHEER_TICK_MS, CHEER_MIN_GAP_MS, PORT, ADMIN_KEY, SAVE_PATH, PUBLIC_URL, UNDO_LIMIT,
+  CHEER_TICK_MS, CHEER_MIN_GAP_MS, PORT, ADMIN_KEY, SAVE_PATH, QUESTIONS_PATH, PUBLIC_URL, UNDO_LIMIT,
 } from "./config.js";
 import { publicView, teamView, adminView } from "./views.js";
 
@@ -25,6 +25,7 @@ if (!ADMIN_KEY) {
 }
 
 const savePath = path.resolve(import.meta.dirname, SAVE_PATH);
+const questionsPath = path.resolve(import.meta.dirname, QUESTIONS_PATH);
 
 function lanAddresses() {
   return Object.values(os.networkInterfaces())
@@ -39,14 +40,14 @@ const joinUrl = PUBLIC_URL ?? `http://${lanAddresses()[0] ?? "localhost"}:${PORT
 
 // ---- The game: restored from the last save, or new ----
 
-// Real questions live in data/, which git ignores, so the answers never reach GitHub.
-// Without that file, the harmless sample questions are used for development.
+// Real questions live in data/ (uploaded on the admin page, or put there by hand), which
+// git ignores, so the answers never reach GitHub. Without that file, the harmless
+// sample questions are used until real ones are uploaded.
 function loadQuestionFile() {
-  const realQuestions = path.join(import.meta.dirname, "data", "questions.json");
-  const sampleQuestions = path.join(import.meta.dirname, "questions.sample.json");
-  const questionsPath = fs.existsSync(realQuestions) ? realQuestions : sampleQuestions;
-  const questions = loadQuestions(questionsPath); // stops the server with a clear message if broken
-  console.log(`Loaded ${questions.length} questions from ${path.relative(import.meta.dirname, questionsPath)}`);
+  const samplePath = path.join(import.meta.dirname, "questions.sample.json");
+  const file = fs.existsSync(questionsPath) ? questionsPath : samplePath;
+  const questions = loadQuestions(file); // stops the server with a clear message if broken
+  console.log(`Loaded ${questions.length} questions from ${path.relative(import.meta.dirname, file)}`);
   return questions;
 }
 
@@ -65,6 +66,12 @@ const undoStack = [];
 // ---- Web server and sockets ----
 
 const app = express();
+
+// Kubernetes asks this to decide whether the pod is alive and ready for traffic.
+app.get("/healthz", (_req, res) => {
+  res.send("ok");
+});
+
 app.use(express.static(path.join(import.meta.dirname, "public")));
 
 const httpServer = createServer(app);
@@ -158,6 +165,11 @@ const adminActions = {
     return result;
   },
   toggleRegistration: () => toggleRegistration(state),
+  loadQuestions: (action) => {
+    const result = replaceQuestions(state, action.questions);
+    if (result.ok) saveQuestions(state.questions, questionsPath); // so a reset or restart keeps them
+    return result;
+  },
   reset: () => {
     state = createGame(state.questions);
     io.emit("game:reset"); // every page forgets its saved team code or spectator id
@@ -190,6 +202,11 @@ io.on("connection", (socket) => {
     if (!socket.data.isAdmin) return reply(callback, { ok: false, error: "Not an admin" });
     if (typeof action !== "object" || action === null) return reply(callback, { ok: false, error: "Unknown action" });
 
+    // Export: a backup copy of the whole game, downloaded by the admin page. Changes nothing.
+    if (action.type === "export") {
+      return reply(callback, { ok: true, data: state });
+    }
+
     if (action.type === "undo") {
       const previous = undoStack.pop();
       if (!previous) return reply(callback, { ok: false, error: "Nothing to undo" });
@@ -204,7 +221,7 @@ io.on("connection", (socket) => {
 
     const result = adminActions[action.type](action, Date.now());
     if (!result.ok) undoStack.pop(); // nothing changed, so nothing to undo
-    reply(callback, result.ok ? { ok: true } : { ok: false, error: result.error });
+    reply(callback, result.ok ? { ok: true, count: result.count } : { ok: false, error: result.error });
     if (result.ok) broadcast();
   });
 

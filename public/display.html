@@ -4,138 +4,45 @@
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>Display · Stump the Profs</title>
+  <meta name="description" content="Follow Stump the Profs live, predict who gets each question and cheer for your side.">
+  <link rel="preload" href="/fonts/clash-display-600.woff2" as="font" type="font/woff2" crossorigin>
   <link rel="stylesheet" href="/style.css">
-  <style>
-    /* ---- Shared by phone and projector ---- */
-    :root { --students: #3b8eea; --profs: #b05cc2; --accent: #f2a900; --good: #2fb35a; --bad: #e5484d; }
-    body.display { max-width: 46rem; }
-    .topbar { display: flex; flex-wrap: wrap; align-items: center; gap: 0.6rem; justify-content: space-between; }
-    .topbar h1 { margin: 0; font-size: 1.4rem; }
-    .join { color: #666; font-size: 0.95rem; }
-    .join strong { color: inherit; font-family: ui-monospace, monospace; }
-    .floor { margin-top: 1rem; }
-    .floor-name { font-size: 1.5rem; font-weight: 800; }
-    .bar { height: 0.6rem; background: #ddd; border-radius: 0.3rem; overflow: hidden; margin-top: 0.4rem; }
-    .bar div { height: 100%; width: 0; background: var(--accent); transition: width 0.1s linear; }
-    #up-next, #lockin-line { color: #555; }
-    .result-banner { font-size: 1.5rem; font-weight: 800; margin: 0.75rem 0; }
-    .result-banner.win { color: var(--good); }
-    .result-banner .answer { display: block; font-size: 0.8em; font-weight: 700; color: #111; margin-top: 0.2em; }
-    .projector .result-banner .answer { color: #fff; }
-    .board { margin-top: 1.5rem; }
-    .totals { display: grid; grid-template-columns: 1fr 1fr; text-align: center; font-weight: 800; }
-    .totals .num { display: block; font-size: 2rem; }
-    .totals .s { color: var(--students); } .totals .p { color: var(--profs); }
-    .tug { display: flex; height: 0.8rem; border-radius: 0.4rem; overflow: hidden; margin: 0.4rem 0 1rem; background: #ddd; }
-    .tug .s { background: var(--students); transition: width 0.4s; } .tug .p { background: var(--profs); transition: width 0.4s; }
-    .sides { display: grid; grid-template-columns: 1fr 1fr; gap: 1.25rem; }
-    .buzzes { list-style: none; padding: 0; display: flex; flex-wrap: wrap; gap: 0.4rem; }
-    .buzzes li { background: #f1f1f1; border-radius: 1rem; padding: 0.15rem 0.7rem; }
-    .buzzes li:first-child { background: var(--accent); color: #000; font-weight: 700; }
-    .buzzes .gap { opacity: 0.7; font-size: 0.85em; margin-left: 0.3rem; }
-    .waiting { font-size: 1.3rem; color: #666; margin: 2rem 0; }
-    .teams span { overflow-wrap: anywhere; }
-
-    /* ---- Projector: dark, huge, fills the screen ---- */
-    body.projector { max-width: none; margin: 0; padding: 1.5vh 2.5vw; height: 100vh; box-sizing: border-box;
-                     background: #0e1117; color: #f5f5f5; display: grid; grid-template-rows: auto 1fr; gap: 2vh;
-                     font-size: clamp(1rem, 1.35vw, 2.2rem); overflow: hidden; }
-    .projector .connection { display: none; }
-    .projector .topbar h1 { font-size: 1.6em; }
-    .projector .join { color: #c9d1d9; font-size: 1em; }
-    .projector .phase { font-size: 1em; background: #262c36; }
-    .projector .phase.open { background: var(--bad); } .projector .phase.answering { background: var(--accent); color: #000; } .projector .phase.revealed { background: var(--good); }
-    .projector main { display: grid; grid-template-columns: 1.7fr 1fr; gap: 3vw; min-height: 0; }
-    .projector .stage { display: flex; flex-direction: column; min-height: 0; }
-    .projector .meta { color: #9aa4b2; font-size: 1em; }
-    .projector .prompt { font-size: 2.3em; line-height: 1.15; }
-    .projector .choices { grid-template-columns: 1fr 1fr; gap: 1vh 1.5vw; }
-    .projector .choices li { font-size: 1.4em; border-color: #39414d; background: #161b22; padding: 0.6em 0.8em; }
-    .projector .choices li.correct { background: var(--good); border-color: var(--good); color: #fff; }
-    .projector .floor-name { font-size: 2em; color: var(--accent); }
-    .projector .bar { height: 1.2vh; background: #262c36; }
-    .projector #countdown { font-size: 1.6em; color: var(--accent); }
-    .projector #up-next, .projector #lockin-line { color: #c9d1d9; font-size: 1.1em; }
-    .projector .result-banner { font-size: 2em; }
-    .projector .board { margin-top: 0; background: #161b22; border-radius: 1rem; padding: 1.5vh 1.5vw; overflow: hidden; }
-    .projector .totals .num { font-size: 3em; }
-    .projector .tug { height: 1.6vh; background: #262c36; }
-    .projector .teams li { border-color: #262c36; font-size: 1.1em; padding: 0.35em 0; }
-    .projector .teams strong { font-variant-numeric: tabular-nums; }
-    .projector .buzzes li { background: #262c36; }
-    .projector .buzzes li:first-child { background: var(--accent); color: #000; }
-    .projector .waiting { color: #9aa4b2; font-size: 2em; }
-    .projector .empty-note { color: #6e7681; }
-    /* ---- Crowd: phone controls ---- */
-    .crowd-panel { margin: 1.25rem 0; padding: 1rem; border-radius: 0.75rem; background: #f4f6fb; }
-    .crowd-panel h2 { margin: 0 0 0.5rem; font-size: 1.15rem; }
-    .crowd-panel form { display: flex; gap: 0.5rem; }
-    .crowd-panel input { flex: 1; font-size: 1.1rem; padding: 0.5rem; }
-    .crowd-panel button { min-height: 3rem; font-size: 1.1rem; border-radius: 0.5rem; border: 1px solid #aab; background: #fff; cursor: pointer; }
-    .crowd-panel .row { display: grid; grid-template-columns: repeat(auto-fit, minmax(6rem, 1fr)); gap: 0.4rem; margin: 0.4rem 0 0.8rem; }
-    .crowd-panel button.chosen { background: #1f2937; color: #fff; border-color: #1f2937; font-weight: 700; }
-    .crowd-panel button:disabled:not(.chosen) { opacity: 0.45; }
-    .crowd-panel .me { font-weight: 700; }
-    .crowd-panel .feedback { color: #2a7a3f; font-weight: 600; min-height: 1.2em; }
-    .crowd-panel .error { color: var(--bad); min-height: 1.2em; }
-    .cheer-row button { font-size: 1.3rem; font-weight: 800; color: #fff; border: none; }
-    .cheer-row .s { background: var(--students); } .cheer-row .p { background: var(--profs); }
-    .cheer-row button:active { transform: scale(0.96); }
-
-    /* ---- Crowd: shown on both, sized up on the projector ---- */
-    .crowd-board h3 { margin: 1rem 0 0.3rem; font-size: 1rem; }
-    .crowd-board .label { display: flex; justify-content: space-between; font-size: 0.85em; color: #666; }
-    .meter { display: flex; height: 0.9rem; border-radius: 0.45rem; overflow: hidden; background: #ddd; margin: 0.2rem 0 0.6rem; }
-    .meter div { transition: width 0.25s; } .meter .s { background: var(--students); } .meter .p { background: var(--profs); } .meter .n { background: #888; }
-    #crowd-top { list-style: none; padding: 0; margin: 0; }
-    #crowd-top li { display: flex; justify-content: space-between; gap: 0.5rem; padding: 0.15rem 0; }
-    .choices .split { float: right; font-weight: 700; opacity: 0.9; }
-    .projector .crowd-panel { display: none; }
-    .projector .crowd-board h3 { font-size: 1em; color: #c9d1d9; }
-    .projector .crowd-board .label { color: #9aa4b2; }
-    .projector .meter { height: 1.4vh; background: #262c36; }
-    .projector #crowd-top li { font-size: 0.95em; }
-
-    #fullscreen-hint { position: fixed; bottom: 0.5vh; right: 1vw; color: #6e7681; font-size: 0.7em; }
-    body:not(.projector) #fullscreen-hint { display: none; }
-    @media (max-width: 600px) { body.display:not(.projector) .sides { grid-template-columns: 1fr; } }
-  </style>
 </head>
 <body class="display">
-  <div class="topbar">
-    <h1>Stump the Profs</h1>
-    <span><span class="phase" id="phase"></span> <span id="progress"></span></span>
+  <header class="shell topbar">
+    <h1 class="wordmark">Stump the Profs</h1>
+    <span class="phase-group"><span class="phase" id="phase"></span><span class="progress" id="progress"></span></span>
     <span class="join" id="join"></span>
-  </div>
+  </header>
   <p class="connection" id="connection">Connecting…</p>
 
-  <main>
+  <main class="display-main">
     <section class="stage">
       <p class="waiting" id="waiting">Waiting for the first question…</p>
-      <div id="question"></div>
+      <div class="question clay" id="question"></div>
       <div class="result-banner" id="result" hidden></div>
       <div class="floor" id="floor-box" hidden>
-        <span class="floor-name" id="floor"></span> <span id="countdown"></span>
+        <span class="floor-name" id="floor"></span><span id="countdown"></span>
         <div class="bar"><div id="countdown-bar"></div></div>
       </div>
       <p id="up-next"></p>
       <p id="lockin-line"></p>
       <ul class="buzzes" id="buzzes"></ul>
 
-      <section class="crowd-panel" id="crowd-panel">
+      <section class="crowd-panel clay" id="crowd-panel">
         <h2>Play along</h2>
         <form id="crowd-join">
-          <input id="crowd-name" type="text" maxlength="20" placeholder="Pick a nickname" autocomplete="off">
-          <button type="submit">Join</button>
+          <input id="crowd-name" type="text" maxlength="20" placeholder="Pick a nickname" aria-label="Nickname" autocomplete="off">
+          <button type="submit" class="btn btn-primary">Join</button>
         </form>
         <div id="crowd-controls" hidden>
           <p class="me" id="crowd-me"></p>
           <div id="predict-box">
             <div>Who gets this one?</div>
             <div class="row" id="predict-row">
-              <button data-side="student">Students</button>
-              <button data-side="prof">Profs</button>
-              <button data-side="none">Nobody</button>
+              <button type="button" data-side="student">Students</button>
+              <button type="button" data-side="prof">Profs</button>
+              <button type="button" data-side="none">Nobody</button>
             </div>
           </div>
           <div id="pick-box">
@@ -145,28 +52,28 @@
           <p class="feedback" id="crowd-feedback"></p>
           <div>Cheer for your side!</div>
           <div class="row cheer-row">
-            <button class="s" data-cheer="student">Go Students!</button>
-            <button class="p" data-cheer="prof">Go Profs!</button>
+            <button type="button" class="s" data-cheer="student">Go Students!</button>
+            <button type="button" class="p" data-cheer="prof">Go Profs!</button>
           </div>
         </div>
         <p class="error" id="crowd-error"></p>
       </section>
     </section>
 
-    <section class="board">
+    <section class="board clay">
       <div class="totals">
         <div class="s">Students<span class="num" id="total-students">0</span></div>
         <div class="p">Professors<span class="num" id="total-profs">0</span></div>
       </div>
       <div class="tug"><div class="s" id="tug-s"></div><div class="p" id="tug-p"></div></div>
       <div class="sides">
-        <div><ul class="teams" id="students"></ul></div>
-        <div><ul class="teams" id="profs"></ul></div>
+        <ul class="teams" id="students"></ul>
+        <ul class="teams" id="profs"></ul>
       </div>
 
       <div class="crowd-board">
         <h3>Cheer meter</h3>
-        <div class="meter"><div class="s" id="cheer-s" style="width:50%"></div><div class="p" id="cheer-p" style="width:50%"></div></div>
+        <div class="meter"><div class="s" id="cheer-s"></div><div class="p" id="cheer-p"></div></div>
         <h3 id="predict-title">Crowd predictions</h3>
         <div class="meter"><div class="s" id="pred-s"></div><div class="p" id="pred-p"></div><div class="n" id="pred-n"></div></div>
         <div class="label"><span id="pred-s-label"></span><span id="pred-n-label"></span><span id="pred-p-label"></span></div>

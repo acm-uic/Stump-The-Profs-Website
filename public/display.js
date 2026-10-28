@@ -137,7 +137,7 @@ function buildPickButtons(view) {
 function renderCrowdPanel() {
   if (isProjector || !lastView || !me) return;
   const view = lastView;
-  $("#crowd-me").textContent = `${me.name} · ${me.score} pts · ${ordinal(me.rank)} of ${me.rankOf}`;
+  $("#crowd-me").textContent = `${me.name}: ${me.score} pts, ${ordinal(me.rank)} of ${me.rankOf}`;
 
   const hasQuestion = Boolean(view.question);
   $("#predict-box").hidden = !hasQuestion;
@@ -161,11 +161,11 @@ function renderCrowdPanel() {
   if (view.phase === "preview" && !me.prediction) notes.push("Predict before the buzzers open!");
   if (view.phase === "revealed") {
     if (me.predictionRight) notes.push("Prediction right!");
-    else if (me.prediction) notes.push("Prediction missed");
+    else if (me.prediction) notes.push("Prediction missed.");
     if (me.pickRight) notes.push("Answer right!");
-    else if (me.pick !== null) notes.push("Answer missed");
+    else if (me.pick !== null) notes.push("Answer missed.");
   }
-  $("#crowd-feedback").textContent = notes.join(" · ");
+  $("#crowd-feedback").textContent = notes.join(" ");
 }
 
 socket.on("crowd:me", (data) => {

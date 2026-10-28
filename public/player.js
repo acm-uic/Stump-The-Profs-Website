@@ -14,7 +14,9 @@ function showRegister() {
 }
 
 function showPlay({ name, side, code }) {
-  $("#team-label").textContent = `${name} · ${SIDE_NAMES[side]}`;
+  $("#team-label").textContent = name;
+  $("#team-side").textContent = SIDE_NAMES[side];
+  $("#team-side").dataset.side = side;
   $("#code").textContent = code;
   $("#register").hidden = true;
   $("#play").hidden = false;
@@ -79,14 +81,16 @@ function buzzerLabel(view) {
   const line = place === 1 ? "you're next if they miss" : place ? `you're ${ordinal(place)} in line` : "";
   switch (buzzer) {
     case "locked": return ["WAIT", view.phase === "preview" ? "Get ready…" : "Waiting for the host"];
-    case "ready": return ["BUZZ", floorTeam ? `${floorTeam.name} is answering · ${line || "buzz to get in line"}` : "Buzzers are open!"];
-    case "buzzed": return ["IN LINE", `${floorTeam.name} is answering · ${line}`];
+    case "ready": return ["BUZZ", floorTeam ? `${floorTeam.name} is answering. ${capitalise(line || "buzz to get in line")}.` : "Buzzers are open!"];
+    case "buzzed": return ["IN LINE", `${floorTeam.name} is answering. ${capitalise(line)}.`];
     case "floor": return ["YOUR TURN", "Answer out loud!"];
     case "tried": return ["ANSWERED", floorTeam ? `${floorTeam.name} is answering` : "Waiting for the others"];
     case "over": return ["DONE", resultLine(view)];
     default: return ["", ""];
   }
 }
+
+const capitalise = (text) => text.charAt(0).toUpperCase() + text.slice(1);
 
 function resultLine(view) {
   const { result, me } = view;
@@ -148,9 +152,9 @@ function renderLockIn(view) {
   if (mine) {
     text = `Locked in: ${lockInText(view.question, mine.answer)}`;
     if (view.phase === "revealed") {
-      if (mine.awarded) text += ` · Right! +${view.lockInPoints}`;
-      else if (mine.correct === false) text += " · Not this time";
-      else if (mine.correct == null) text += " · Waiting for the host to mark it";
+      if (mine.awarded) text += `. Right! +${view.lockInPoints}`;
+      else if (mine.correct === false) text += ". Not this time.";
+      else if (mine.correct == null) text += ". Waiting for the host to mark it.";
     }
   }
   $("#lockin-result").textContent = text;
@@ -177,7 +181,7 @@ function renderScores(view) {
 }
 
 function renderStats(stats) {
-  const show = (id, value) => { $(id).textContent = value ?? "—"; };
+  const show = (id, value) => { $(id).textContent = value ?? "n/a"; };
   show("#st-buzzes", stats.buzzesWon);
   show("#st-accuracy", stats.accuracy == null ? null : `${stats.accuracy}%`);
   show("#st-avg", stats.avgReactionMs == null ? null : formatMs(stats.avgReactionMs));
@@ -199,7 +203,10 @@ function renderHistory(history) {
   $("#history").replaceChildren(...[...history].reverse().map((h) => {
     const li = document.createElement("li");
     const left = document.createElement("span");
-    left.textContent = `Q${h.questionNumber} · ${TYPE_LABELS[h.type]}`;
+    const number = document.createElement("span");
+    number.className = "q";
+    number.textContent = `Q${h.questionNumber}`;
+    left.append(number, TYPE_LABELS[h.type]);
     const right = document.createElement("span");
     right.className = `r-${h.result}`;
     right.textContent = h.points ? `${h.result} +${h.points}` : h.result;

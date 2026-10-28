@@ -68,7 +68,7 @@ export function upNextText(view) {
   return "Up next: " + view.upNext.map((t) => `${t.name} (${SIDE_NAMES[t.side]})`).join(", ");
 }
 
-// Fills a list element with "name — score" rows for some teams.
+// Fills a list element with "name, score" rows for some teams.
 export function renderTeamList(listEl, teams, emptyText = "No teams yet") {
   listEl.replaceChildren();
   if (teams.length === 0) {
@@ -96,8 +96,11 @@ export function renderQuestion(el, question) {
   if (!question) return;
   const meta = document.createElement("p");
   meta.className = "meta";
-  meta.textContent = [question.category, TYPE_LABELS[question.type], `${question.points} pts`]
-    .filter(Boolean).join(" · ");
+  for (const text of [question.category, TYPE_LABELS[question.type], `${question.points} pts`].filter(Boolean)) {
+    const chip = document.createElement("span");
+    chip.textContent = text;
+    meta.append(chip);
+  }
   const prompt = document.createElement("p");
   prompt.className = "prompt";
   prompt.textContent = question.prompt;

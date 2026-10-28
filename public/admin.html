@@ -4,91 +4,74 @@
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>Admin · Stump the Profs</title>
+  <meta name="description" content="Host controls for Stump the Profs.">
+  <link rel="preload" href="/fonts/clash-display-600.woff2" as="font" type="font/woff2" crossorigin>
   <link rel="stylesheet" href="/style.css">
-  <style>
-    body { max-width: 64rem; }
-    .layout { display: grid; grid-template-columns: 2fr 1.2fr; gap: 2rem; }
-    @media (max-width: 760px) { .layout { grid-template-columns: 1fr; } }
-    .controls { display: flex; flex-wrap: wrap; gap: 0.5rem; margin: 1rem 0; }
-    .controls button, .tools button { font-size: 1.05rem; padding: 0.6rem 1rem; border-radius: 0.4rem; border: 1px solid #999; background: #f7f7f7; cursor: pointer; }
-    .controls button:disabled, .tools button:disabled { opacity: 0.35; cursor: not-allowed; }
-    .controls kbd, .tools kbd { font-size: 0.7em; opacity: 0.6; margin-left: 0.3rem; }
-    #correct:not(:disabled) { background: #2a9d4b; color: #fff; border-color: #2a9d4b; }
-    #wrong:not(:disabled) { background: #d62828; color: #fff; border-color: #d62828; }
-    #message { min-height: 1.5em; color: #d62828; }
-    .answer-box { background: #fff8e1; border: 1px solid #f2a900; border-radius: 0.4rem; padding: 0.5rem 0.75rem; }
-    #question-list { font-size: 0.9rem; padding-left: 1.5rem; }
-    #question-list li.played { color: #999; }
-    #question-list li.current { font-weight: bold; }
-    #lockins button { margin-left: 0.25rem; }
-    .mark-right { color: #2a9d4b; } .mark-wrong { color: #d62828; } .mark-pending { color: #b07d00; }
-    .tools { display: flex; flex-wrap: wrap; gap: 0.5rem; margin-bottom: 1rem; }
-    #reset { border-color: #d62828; color: #d62828; }
-    .upload { font-size: 1.05rem; padding: 0.6rem 1rem; border-radius: 0.4rem; border: 1px solid #999; background: #f7f7f7; cursor: pointer; }
-    .upload input { display: none; }
-    #tool-message { min-height: 1.2em; margin-top: -0.5rem; }
-    #tool-message.ok { color: #2a9d4b; } #tool-message.bad { color: #d62828; }
-    .team-row { display: grid; grid-template-columns: 1fr auto; gap: 0.25rem 0.5rem; padding: 0.4rem 0; border-bottom: 1px solid #eee; }
-    .team-row .actions { grid-column: 1 / -1; display: flex; gap: 0.3rem; }
-    .team-row input { width: 5.5rem; font-size: 0.95rem; padding: 0.2rem 0.3rem; }
-    .team-row button { font-size: 0.85rem; padding: 0.2rem 0.5rem; }
-    .team-row .kick { margin-left: auto; color: #d62828; }
-    #login { max-width: 24rem; margin: 4rem auto; text-align: center; }
-    #login input { font-size: 1.1rem; padding: 0.5rem; width: 100%; box-sizing: border-box; margin: 0.5rem 0; }
-    #login button { font-size: 1.1rem; padding: 0.5rem 1.5rem; }
-    #login-error { color: #d62828; min-height: 1.5em; }
-  </style>
 </head>
 <body>
-  <h1>Host controls</h1>
-  <p class="connection" id="connection">Connecting…</p>
+  <header class="shell">
+    <h1 class="wordmark">Host controls</h1>
+    <p class="connection" id="connection">Connecting…</p>
+  </header>
 
-  <form id="login" hidden>
-    <p>Enter the admin key.</p>
-    <input id="key" type="password" autocomplete="current-password">
-    <button type="submit">Unlock</button>
-    <p id="login-error"></p>
-  </form>
+  <div class="admin-main">
+    <form id="login" class="clay" hidden>
+      <h2>Enter the admin key.</h2>
+      <input id="key" type="password" autocomplete="current-password" aria-label="Admin key">
+      <button type="submit" class="btn btn-primary">Sign in</button>
+      <p class="error" id="login-error"></p>
+    </form>
 
-  <div class="layout" id="panel" hidden>
-    <main>
-      <p><span class="phase" id="phase"></span> <span id="progress"></span> <span id="countdown"></span></p>
-      <div id="question"></div>
-      <p class="answer-box" id="answer-box" hidden>Answer: <strong id="answer"></strong></p>
-      <p id="floor"></p>
-      <p id="up-next"></p>
-      <p class="result" id="result"></p>
+    <div class="layout" id="panel" hidden>
+      <main>
+        <p class="host-status"><span class="phase" id="phase"></span><span id="progress"></span><span id="countdown"></span></p>
+        <div class="question clay" id="question"></div>
+        <p class="answer-box" id="answer-box" hidden>Answer: <strong id="answer"></strong></p>
+        <div class="host-notes">
+          <p id="floor"></p>
+          <p id="up-next"></p>
+          <p class="result" id="result"></p>
+        </div>
 
-      <div class="controls">
-        <button id="show">Show next question<kbd>N</kbd></button>
-        <button id="open">Open buzzers<kbd>O</kbd></button>
-        <button id="correct">Correct<kbd>C</kbd></button>
-        <button id="wrong">Wrong<kbd>W</kbd></button>
-        <button id="reveal">Reveal answer<kbd>R</kbd></button>
-      </div>
-      <p id="message"></p>
+        <div class="controls">
+          <button type="button" id="show">Show next question<kbd>N</kbd></button>
+          <button type="button" id="open">Open buzzers<kbd>O</kbd></button>
+          <button type="button" id="correct">Correct<kbd>C</kbd></button>
+          <button type="button" id="wrong">Wrong<kbd>W</kbd></button>
+          <button type="button" id="reveal">Reveal answer<kbd>R</kbd></button>
+        </div>
+        <p id="message"></p>
 
-      <h2>Lock-ins <small id="lockin-value"></small></h2>
-      <ul class="teams" id="lockins"></ul>
+        <section class="panel">
+          <h2>Lock-ins <small id="lockin-value"></small></h2>
+          <ul class="teams" id="lockins"></ul>
+        </section>
 
-      <h2>Buzzes</h2>
-      <ol id="buzzes"></ol>
-    </main>
+        <section class="panel">
+          <h2>Buzzes</h2>
+          <ol id="buzzes"></ol>
+        </section>
+      </main>
 
-    <aside>
-      <div class="tools">
-        <button id="undo">Undo<kbd>Z</kbd></button>
-        <button id="registration"></button>
-        <button id="reset">Reset game…</button>
-        <button id="export">Export backup</button>
-        <label class="upload">Upload questions… <input id="upload" type="file" accept=".json,application/json"></label>
-      </div>
-      <p id="tool-message"></p>
-      <h2>Teams</h2>
-      <div id="teams"></div>
-      <h2>Questions</h2>
-      <ol id="question-list"></ol>
-    </aside>
+      <aside>
+        <div class="tools">
+          <button type="button" id="undo">Undo<kbd>Z</kbd></button>
+          <button type="button" id="registration"></button>
+          <button type="button" id="reset">Reset game…</button>
+          <button type="button" id="export">Export backup</button>
+          <label class="upload">Upload questions… <input id="upload" type="file" accept=".json,application/json"></label>
+        </div>
+        <p id="tool-message"></p>
+        <section class="panel clay">
+          <h2>Teams</h2>
+          <div id="teams"></div>
+        </section>
+        <section class="panel">
+          <h2>Questions</h2>
+          <ol id="question-list"></ol>
+        </section>
+      </aside>
+    </div>
   </div>
 
   <script src="/socket.io/socket.io.js"></script>

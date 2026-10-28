@@ -1,0 +1,123 @@
+/* Every colour, font, size and shadow the pages use. Nothing outside this file names a colour. */
+@font-face {
+  font-family: "Clash Display";
+  src: url("/fonts/clash-display-600.woff2") format("woff2");
+  font-weight: 600;
+  font-style: normal;
+  font-display: swap;
+}
+@font-face {
+  font-family: "Manrope";
+  src: url("/fonts/manrope-latin.woff2") format("woff2");
+  font-weight: 200 800;
+  font-style: normal;
+  font-display: swap;
+}
+
+:root {
+  --space-3xs: 2px; --space-2xs: 4px; --space-xs: 8px; --space-sm: 12px; --space-md: 16px; --space-lg: 24px; --space-xl: 40px; --space-2xl: 64px; --space-3xl: 96px; --space-4xl: 144px;
+  --text-xs: 0.8125rem; --text-sm: 0.875rem; --text-md: 1rem; --text-lg: 1.2rem; --text-xl: 1.44rem; --text-2xl: 1.728rem; --text-3xl: 2.074rem; --text-4xl: 2.488rem;
+  --text-display-s: 1.728rem; --text-display: 2.488rem; --text-section: 1.2rem; --text-title: 1rem; --text-lead: 1.2rem;
+  --ease-out: cubic-bezier(0.16, 1, 0.3, 1); --ease-in: cubic-bezier(0.7, 0, 0.84, 0); --ease-in-out: cubic-bezier(0.65, 0, 0.35, 1);
+  --dur-micro: 120ms; --dur-short: 220ms; --dur-long: 420ms;
+  --container: 1440px; --gutter: 40px; --gap-columns: 32px; --section-gap-s: 120px; --section-gap: 144px; --section-gap-l: 176px;
+  --z-base: 1; --z-raised: 10; --z-dropdown: 100; --z-sticky: 200; --z-sticky-nav: 300; --z-modal: 400; --z-toast: 500; --z-tooltip: 600;
+
+  /* Paper: a soft periwinkle grey, so the clay pieces read as lighter lumps sitting on it. */
+  --color-paper: oklch(93.5% 0.016 268);
+  --color-paper-2: oklch(90.5% 0.02 268);
+  --color-paper-3: oklch(86.5% 0.024 268);
+  --color-clay: oklch(96.8% 0.011 268);
+  --color-ink: oklch(24% 0.035 268);
+  --color-ink-2: oklch(37% 0.035 268);
+  --color-muted: oklch(47% 0.03 268);
+  --color-rule: oklch(84% 0.022 268);
+
+  /* The buzzer red: the one signal. */
+  --color-accent: oklch(55% 0.2 27);
+  --color-accent-ink: oklch(98.5% 0.008 27);
+  --color-focus: oklch(53% 0.21 27);
+
+  /* The two sides, each a fill, the ink that sits on that fill, and a text colour for light paper. */
+  --color-students: oklch(52% 0.15 252);
+  --color-students-ink: oklch(98.5% 0.008 252);
+  --color-students-text: oklch(44% 0.15 252);
+  --color-students-soft: oklch(88% 0.05 252);
+  --color-profs: oklch(74% 0.16 58);
+  --color-profs-ink: oklch(23% 0.05 50);
+  --color-profs-text: oklch(47% 0.13 50);
+  --color-profs-soft: oklch(89% 0.06 65);
+
+  /* Game states. */
+  --color-turn: oklch(86% 0.15 95);
+  --color-turn-ink: oklch(25% 0.05 90);
+  --color-success: oklch(64% 0.15 152);
+  --color-success-ink: oklch(22% 0.05 152);
+  --color-success-text: oklch(43% 0.12 152);
+  --color-error: oklch(52% 0.19 27);
+  --color-idle: oklch(80% 0.02 268);
+  --color-idle-ink: oklch(30% 0.03 268);
+
+  /* What clay shading is mixed from: a lit edge and a shaded edge. */
+  --color-highlight: oklch(99.6% 0.004 268);
+  --color-shade: oklch(22% 0.04 268);
+
+  --font-display: "Clash Display", "Manrope", ui-sans-serif, system-ui, sans-serif;
+  --font-body: "Manrope", ui-sans-serif, system-ui, sans-serif;
+  --font-outlier: var(--font-body);
+
+  --radius-card: 28px; --radius-control: 18px; --radius-inner: 12px; --radius-pill: 999px; --rule-hair: 1px;
+  --tracking-display: 0.005em;
+
+  /* Clay: a soft drop shadow, a shaded lower edge and a lit upper edge, all on the same lump. */
+  --shadow-clay:
+    10px 12px 24px oklch(55% 0.05 268 / 0.26),
+    inset -8px -9px 16px oklch(62% 0.05 268 / 0.2),
+    inset 8px 8px 14px oklch(99.6% 0.004 268 / 0.9);
+  --shadow-clay-sm:
+    5px 6px 12px oklch(55% 0.05 268 / 0.24),
+    inset -4px -5px 9px oklch(62% 0.05 268 / 0.2),
+    inset 4px 4px 8px oklch(99.6% 0.004 268 / 0.9);
+  --shadow-pressed:
+    1px 1px 3px oklch(55% 0.05 268 / 0.2),
+    inset 6px 7px 12px oklch(55% 0.05 268 / 0.3),
+    inset -4px -4px 8px oklch(99.6% 0.004 268 / 0.7);
+  /* A pressed-in well: for tracks, inputs and anything you put something into. */
+  --shadow-well:
+    inset 4px 5px 10px oklch(55% 0.05 268 / 0.24),
+    inset -4px -4px 8px oklch(99.6% 0.004 268 / 0.8);
+  --shadow-card: var(--shadow-clay);
+}
+
+/* The projector: the same clay, lit for a dark room. */
+.projector {
+  --color-paper: oklch(21% 0.035 270);
+  --color-paper-2: oklch(25% 0.04 270);
+  --color-paper-3: oklch(30% 0.04 270);
+  --color-clay: oklch(28% 0.04 270);
+  --color-ink: oklch(96% 0.01 270);
+  --color-ink-2: oklch(86% 0.02 270);
+  --color-muted: oklch(74% 0.03 270);
+  --color-rule: oklch(36% 0.035 270);
+  --color-students-text: oklch(76% 0.12 252);
+  --color-profs-text: oklch(82% 0.13 62);
+  --color-success-text: oklch(80% 0.14 152);
+  /* The correct answer has to jump off a dark screen: a bright green with near-black ink. */
+  --color-success: oklch(82% 0.18 150);
+  --color-success-ink: oklch(19% 0.05 150);
+  --color-idle: oklch(38% 0.035 270);
+  --color-idle-ink: oklch(90% 0.015 270);
+  --color-highlight: oklch(52% 0.05 270);
+  --color-shade: oklch(10% 0.03 270);
+  --shadow-clay:
+    12px 14px 28px oklch(9% 0.03 270 / 0.6),
+    inset -8px -9px 16px oklch(14% 0.035 270 / 0.55),
+    inset 8px 8px 14px oklch(44% 0.045 270 / 0.5);
+  --shadow-clay-sm:
+    6px 7px 14px oklch(9% 0.03 270 / 0.55),
+    inset -4px -5px 9px oklch(14% 0.035 270 / 0.5),
+    inset 4px 4px 8px oklch(44% 0.045 270 / 0.45);
+  --shadow-well:
+    inset 5px 6px 12px oklch(9% 0.03 270 / 0.6),
+    inset -4px -4px 8px oklch(40% 0.04 270 / 0.35);
+}

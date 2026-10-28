@@ -121,7 +121,7 @@ function lockInRow(view, entry) {
   const mark = document.createElement("span");
   if (entry.correct === true) { mark.textContent = entry.awarded ? `✓ +${view.lockInPoints}` : "✓ (won the question)"; mark.className = "mark-right"; }
   else if (entry.correct === false) { mark.textContent = "✗"; mark.className = "mark-wrong"; }
-  else { mark.textContent = view.phase === "revealed" ? "needs marking →" : "free response: mark after reveal"; mark.className = "mark-pending"; }
+  else { mark.textContent = view.phase === "revealed" ? "needs marking" : "free response: mark after reveal"; mark.className = "mark-pending"; }
   left.append(mark);
   li.append(left);
 
@@ -151,7 +151,10 @@ function teamRow(team, phase) {
   const row = document.createElement("div");
   row.className = "team-row";
   const left = document.createElement("span");
-  left.textContent = `${team.name} · ${SIDE_NAMES[team.side]} `;
+  const side = document.createElement("span");
+  side.className = "side";
+  side.textContent = SIDE_NAMES[team.side];
+  left.append(team.name, side);
   const code = document.createElement("span");
   code.className = "code";
   code.textContent = team.code;

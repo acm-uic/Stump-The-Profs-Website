@@ -3,15 +3,17 @@
 // object, either { ok: true, ... } or { ok: false, error }.
 //
 // A question moves through phases:
-//   lobby -> preview (question shown) -> open (buzzers live) -> answering (a team has the floor)
-//         -> revealed (answer shown) -> preview (next question) ...
+//   lobby -> preview (question shown) -> open (teams pick an answer and press BUZZ to lock it in)
+//         -> judging (sealed answers read out one by one) -> revealed (answer shown) -> preview ...
+// Nobody says an answer out loud until every answer is sealed, so nobody can copy one.
 // Every action first checks it is allowed in the current phase.
 
-import { pointsFor, lockInPoints, autoCheck } from "./scoring.js";
+import { pointsFor, lockInPoints, autoCheck, answerSeconds } from "./scoring.js";
 import { validateQuestions } from "./store.js";
-import { LOCKIN_MAX_LENGTH, MAX_ADJUST } from "./config.js";
+import { LOCKIN_MAX_LENGTH, MAX_ADJUST, LATE_GRACE_MS } from "./config.js";
 import { stealOrder } from "./turns.js";
 import { createCrowd, startQuestion, settleQuestion } from "./crowd.js";
+import { parseYouTube } from "./music.js";
 
 const SIDES = ["student", "prof"];
 const CODE_ALPHABET = "ABCDEFGHJKLMNPQRSTUVWXYZ23456789"; // no O/0, I/1 look-alikes
@@ -19,15 +21,13 @@ const MAX_NAME_LENGTH = 30;
 
 function freshCurrent() {
   return {
-    openedAt: null,       // server time the buzzers opened
-    buzzes: [],           // { teamId, at } in arrival order
-    attempted: [],        // team ids that have answered aloud
-    activeTeamId: null,   // team with the floor
-    answeringSince: null, // when that team got the floor
+    openedAt: null,       // server time the answers opened
+    buzzes: [],           // { teamId, at }: the order teams locked in their answers
+    answers: {},          // teamId -> { answer, correct: true | false | null, awarded }
+    attempted: [],        // team ids whose answers have been read out and judged, in order
+    activeTeamId: null,   // team whose answer is being read out, waiting for the host
     winnerTeamId: null,
     pointsAwarded: 0,
-    lockIns: {},          // teamId -> { answer, correct: true | false | null, awarded }
-    lockInsOpen: true,    // closes at the first judgement, so nobody copies a spoken answer
   };
 }
 
@@ -42,7 +42,28 @@ export function createGame(questions = []) {
     current: freshCurrent(),
     history: [], // one record per finished question, used for each team's history and stats
     crowd: createCrowd(), // spectators and their predictions, picks and scores
+    music: { background: null, playing: false, volume: 60 }, // played by the projector
   };
+}
+
+// A game saved by an older version (lock-ins, an "answering" phase, no music) is
+// brought up to date on load. A question that was mid-play goes back to its preview,
+// so the host simply opens answers again.
+export function upgradeState(state) {
+  state.music ??= { background: null, playing: false, volume: 60 };
+  for (const record of state.history) record.answered ??= [];
+  const current = state.current;
+  if (!current.answers) {
+    current.answers = current.lockIns ?? {};
+    delete current.lockIns;
+    delete current.lockInsOpen;
+    delete current.answeringSince;
+  }
+  if (!["lobby", "preview", "open", "judging", "revealed"].includes(state.phase)) {
+    state.current = freshCurrent();
+    state.phase = state.questionIndex >= 0 ? "preview" : "lobby";
+  }
+  return state;
 }
 
 export function currentQuestion(state) {
@@ -99,10 +120,10 @@ export function adjustScore(state, teamId, delta) {
   return { ok: true };
 }
 
-// Remove a team. Only between questions, so nobody's steal order or lock-ins change mid-question.
+// Remove a team. Only between questions, so nobody's reading order or answers change mid-question.
 export function kickTeam(state, teamId) {
   if (!state.teams[teamId]) return { ok: false, error: "Unknown team" };
-  if (state.phase === "open" || state.phase === "answering") {
+  if (state.phase === "open" || state.phase === "judging") {
     return { ok: false, error: "Remove teams between questions" };
   }
   delete state.teams[teamId];
@@ -153,37 +174,96 @@ export function openBuzzers(state, now) {
   return { ok: true };
 }
 
-export function buzz(state, teamId, now) {
-  if (state.phase !== "open" && state.phase !== "answering") {
-    return { ok: false, error: "Buzzers are not open" };
+// When the answer window closes, in server time.
+export function answerDeadline(state) {
+  const question = currentQuestion(state);
+  if (!question || state.current.openedAt === null) return null;
+  return state.current.openedAt + answerSeconds(question) * 1000;
+}
+
+// What is wrong with an answer for this question, or null when it is a valid answer.
+function answerProblem(question, answer) {
+  if (question.type === "mc" && !(Number.isInteger(answer) && answer >= 0 && answer < question.choices.length)) {
+    return "Pick one of the choices";
   }
+  if (question.type === "tf" && typeof answer !== "boolean") return "Pick true or false";
+  if (question.type === "free") {
+    if (typeof answer !== "string" || answer.trim() === "") return "Type an answer";
+    if (answer.length > LOCKIN_MAX_LENGTH) return `Answers can be at most ${LOCKIN_MAX_LENGTH} characters`;
+  }
+  return null;
+}
+
+// BUZZ: a team locks in its answer, sealed. Only the host sees it until it is read out.
+// The buzz order decides who is read first, so it still pays to be fast.
+export function buzz(state, teamId, answer, now) {
+  if (state.phase !== "open") return { ok: false, error: "Answers are not open" };
   const team = state.teams[teamId];
   if (!team) return { ok: false, error: "Unknown team" };
   const current = state.current;
-  if (current.buzzes.some((b) => b.teamId === teamId)) return { ok: false, error: "Already buzzed" };
+  if (current.answers[teamId]) return { ok: false, error: "You already locked in" };
+  if (now > answerDeadline(state) + LATE_GRACE_MS) return { ok: false, error: "Time is up" };
 
+  const question = currentQuestion(state);
+  const problem = answerProblem(question, answer);
+  if (problem) return { ok: false, error: problem };
+
+  const cleanAnswer = typeof answer === "string" ? answer.trim() : answer;
   current.buzzes.push({ teamId, at: now });
+  current.answers[teamId] = { answer: cleanAnswer, correct: autoCheck(question, cleanAnswer), awarded: false };
+  if (current.buzzes.length === 1) team.stats.buzzesWon += 1;
+  team.stats.reactionTimes.push(now - current.openedAt);
 
-  // The first buzz wins the floor. Later buzzes still count: the steal order uses them.
-  if (current.activeTeamId === null) {
-    current.activeTeamId = teamId;
-    current.answeringSince = now;
-    team.stats.buzzesWon += 1;
-    team.stats.reactionTimes.push(now - current.openedAt);
-    state.phase = "answering";
-  }
+  // Every team is in: no reason to make the room wait for the clock.
+  if (current.buzzes.length === Object.keys(state.teams).length) closeAnswers(state);
   return { ok: true };
 }
 
-export function judge(state, correct, now) {
-  if (state.phase !== "answering") return { ok: false, error: "No team is answering" };
+// Stop taking answers. Nothing has been said aloud yet; reading starts now.
+export function closeAnswers(state) {
+  if (state.phase !== "open") return { ok: false, error: "Answers are not open" };
+  if (state.current.buzzes.length === 0) {
+    endQuestion(state); // nobody answered: straight to the reveal
+    return { ok: true };
+  }
+  state.phase = "judging";
+  return { ok: true };
+}
+
+// Read out the next sealed answer. Multiple choice, true/false and exact free-response
+// matches judge themselves; anything else waits for the host's Correct or Wrong.
+export function nextAnswer(state) {
+  if (state.phase === "open") {
+    const closed = closeAnswers(state);
+    if (!closed.ok || state.phase !== "judging") return closed;
+  }
+  if (state.phase !== "judging") return { ok: false, error: "Open the answers first" };
+  const current = state.current;
+  if (current.activeTeamId) return { ok: false, error: "Mark this answer Correct or Wrong first" };
+
+  const next = upNext(state)[0];
+  if (!next) {
+    endQuestion(state);
+    return { ok: true };
+  }
+  current.activeTeamId = next;
+  const known = current.answers[next].correct;
+  return known === null ? { ok: true } : judge(state, known);
+}
+
+// The host's ruling on the answer being read out.
+export function judge(state, correct) {
+  const current = state.current;
+  if (state.phase !== "judging" || !current.activeTeamId) {
+    return { ok: false, error: "No answer is waiting to be judged" };
+  }
   if (typeof correct !== "boolean") return { ok: false, error: "Judge needs correct: true or false" };
 
-  const current = state.current;
   const team = state.teams[current.activeTeamId];
   const isSteal = current.attempted.length > 0;
+  current.answers[team.id].correct = correct;
   current.attempted.push(team.id);
-  current.lockInsOpen = false;
+  current.activeTeamId = null;
 
   if (correct) {
     const points = pointsFor(currentQuestion(state));
@@ -197,27 +277,26 @@ export function judge(state, correct, now) {
   }
 
   team.stats.wrong += 1;
-  const next = upNext(state)[0];
-  if (next) {
-    // Pass the floor to the next team in the steal order, with a fresh answer clock.
-    current.activeTeamId = next;
-    current.answeringSince = now;
-  } else {
-    endQuestion(state); // every team has tried
-  }
+  if (upNext(state).length === 0) endQuestion(state); // every answer has been read
   return { ok: true };
 }
 
-// Who would get the floor next, in order, if the current team is wrong.
+// The order the remaining sealed answers will be read in. The fastest lock-in goes
+// first; after that, the steal order alternates sides (see turns.js).
 export function upNext(state) {
   const current = state.current;
   const tried = current.activeTeamId ? [...current.attempted, current.activeTeamId] : current.attempted;
-  const order = stealOrder(Object.values(state.teams), current.buzzes, tried);
+  const answered = Object.values(state.teams).filter((t) => current.answers[t.id]);
+  const fastest = current.buzzes.find((b) => state.teams[b.teamId])?.teamId;
+  const order = tried.length === 0 && fastest
+    ? [fastest, ...stealOrder(answered, current.buzzes, [fastest])]
+    : stealOrder(answered, current.buzzes, tried);
   return order.filter((id) => !tried.includes(id));
 }
 
+// Show the answer now, whatever is still unread.
 export function reveal(state) {
-  if (state.phase !== "open" && state.phase !== "answering") {
+  if (state.phase !== "open" && state.phase !== "judging") {
     return { ok: false, error: "Nothing to reveal right now" };
   }
   endQuestion(state);
@@ -227,8 +306,6 @@ export function reveal(state) {
 // Everything that happens when a question ends, whichever way it ended.
 function endQuestion(state) {
   state.current.activeTeamId = null;
-  state.current.answeringSince = null;
-  state.current.lockInsOpen = false;
   state.phase = "revealed";
   const question = currentQuestion(state);
   state.history.push({
@@ -238,6 +315,7 @@ function endQuestion(state) {
     lockInPoints: lockInPoints(question),
     winnerTeamId: state.current.winnerTeamId,
     attempted: [...state.current.attempted],
+    answered: Object.keys(state.current.answers),
     lockInsAwarded: [],
   });
   settleLockIns(state);
@@ -245,56 +323,28 @@ function endQuestion(state) {
   settleQuestion(state.crowd, { winnerSide: winner?.side ?? null, question });
 }
 
-// ---- Lock-ins -------------------------------------------------------------
+// ---- Answers after the reveal ------------------------------------------------
 
-// A team without the floor secretly commits to an answer, once per question.
-export function lockIn(state, teamId, answer) {
-  const team = state.teams[teamId];
-  if (!team) return { ok: false, error: "Unknown team" };
-  if (!["preview", "open", "answering"].includes(state.phase) || !state.current.lockInsOpen) {
-    return { ok: false, error: "Lock-ins are closed" };
-  }
-  const current = state.current;
-  if (current.activeTeamId === teamId || current.attempted.includes(teamId)) {
-    return { ok: false, error: "You have the floor, so answer out loud" };
-  }
-  if (current.lockIns[teamId]) return { ok: false, error: "You already locked in" };
-
-  const question = currentQuestion(state);
-  if (question.type === "mc" && !(Number.isInteger(answer) && answer >= 0 && answer < question.choices.length)) {
-    return { ok: false, error: "Pick one of the choices" };
-  }
-  if (question.type === "tf" && typeof answer !== "boolean") return { ok: false, error: "Pick true or false" };
-  if (question.type === "free") {
-    if (typeof answer !== "string" || answer.trim() === "") return { ok: false, error: "Type an answer" };
-    if (answer.length > LOCKIN_MAX_LENGTH) {
-      return { ok: false, error: `Answers can be at most ${LOCKIN_MAX_LENGTH} characters` };
-    }
-  }
-
-  const cleanAnswer = typeof answer === "string" ? answer.trim() : answer;
-  current.lockIns[teamId] = { answer: cleanAnswer, correct: autoCheck(question, cleanAnswer), awarded: false };
-  return { ok: true };
-}
-
-// After the reveal, the host marks a free-response lock-in right or wrong.
-export function markLockIn(state, teamId, correct) {
-  if (state.phase !== "revealed") return { ok: false, error: "Mark lock-ins after the reveal" };
-  const entry = state.current.lockIns[teamId];
+// After the reveal, the host marks a free-response answer right or wrong, for
+// answers that were never read out or that a typo kept from matching.
+export function markAnswer(state, teamId, correct) {
+  if (state.phase !== "revealed") return { ok: false, error: "Mark answers after the reveal" };
+  const entry = state.current.answers[teamId];
   if (!entry) return { ok: false, error: "That team did not lock in" };
   if (typeof correct !== "boolean") return { ok: false, error: "Mark needs correct: true or false" };
+  if (teamId === state.current.winnerTeamId) return { ok: false, error: "That team already won the question" };
   entry.correct = correct;
   settleLockIns(state);
   return { ok: true };
 }
 
-// Pays out lock-ins. Safe to run any number of times: it only adds or removes the
-// difference between what should have been paid and what has been paid.
-// The question's winner gets no lock-in bonus on top of the full points.
+// Pays the smaller share to every correct answer except the winner's. Safe to run any
+// number of times: it only adds or removes the difference between what should have
+// been paid and what has been paid.
 function settleLockIns(state) {
   const current = state.current;
   const points = lockInPoints(currentQuestion(state));
-  for (const [teamId, entry] of Object.entries(current.lockIns)) {
+  for (const [teamId, entry] of Object.entries(current.answers)) {
     const team = state.teams[teamId];
     if (!team) continue;
     const shouldPay = entry.correct === true && teamId !== current.winnerTeamId;
@@ -308,11 +358,33 @@ function settleLockIns(state) {
       entry.awarded = false;
     }
   }
-  // Keep this question's history record in step (the host may mark lock-ins after the reveal).
+  // Keep this question's history record in step (the host may mark answers after the reveal).
   const record = state.history.at(-1);
   if (record && state.phase === "revealed") {
-    record.lockInsAwarded = Object.keys(current.lockIns).filter((id) => current.lockIns[id].awarded);
+    record.lockInsAwarded = Object.keys(current.answers).filter((id) => current.answers[id].awarded);
   }
+}
+
+// ---- Music ------------------------------------------------------------------
+
+// The host sets a background link (or clears it with an empty one), starts or stops
+// the music, and sets the volume. The projector does the playing.
+export function setMusic(state, { background, playing, volume } = {}) {
+  const clearing = background === null || background === "";
+  if (background !== undefined && !clearing && !parseYouTube(background)) {
+    return { ok: false, error: "That is not a YouTube link this can play" };
+  }
+  if (playing !== undefined && typeof playing !== "boolean") return { ok: false, error: "playing must be true or false" };
+  if (volume !== undefined && !(Number.isInteger(volume) && volume >= 0 && volume <= 100)) {
+    return { ok: false, error: "Volume goes from 0 to 100" };
+  }
+
+  // Every check passed. Only now do we change the state.
+  const music = state.music ?? (state.music = { background: null, playing: false, volume: 60 });
+  if (background !== undefined) music.background = clearing ? null : background.trim();
+  if (playing !== undefined) music.playing = playing;
+  if (volume !== undefined) music.volume = volume;
+  return { ok: true };
 }
 
 // ---- Helpers --------------------------------------------------------------

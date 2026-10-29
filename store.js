@@ -1,5 +1,7 @@
 import fs from "node:fs";
 import path from "node:path";
+import { parseYouTube } from "./music.js";
+import { MAX_ANSWER_SECONDS } from "./config.js";
 
 const TYPES = ["free", "mc", "tf"];
 
@@ -40,6 +42,16 @@ export function validateQuestions(list) {
       fail("points must be a positive whole number");
     }
     if (q.category !== undefined && !isText(q.category)) fail("category must be text");
+    if (q.seconds !== undefined && (!Number.isInteger(q.seconds) || q.seconds < 5 || q.seconds > MAX_ANSWER_SECONDS)) {
+      fail(`seconds must be a whole number from 5 to ${MAX_ANSWER_SECONDS}`);
+    }
+    if (q.accept !== undefined) {
+      if (q.type !== "free") fail("accept is only for free response questions");
+      if (!Array.isArray(q.accept) || !q.accept.every(isText)) fail("accept must be a list of answers");
+    }
+    if (q.music !== undefined && !parseYouTube(q.music)) {
+      fail("music must be a YouTube link, e.g. https://youtu.be/VIDEO_ID?t=90 (add &end=150 to stop at 2:30)");
+    }
   });
   return list;
 }

@@ -2,29 +2,35 @@
 //
 // The team view is the contract between the server and player.js. Its shape:
 //   phase, questionNumber, questionTotal, question { type, prompt, choices?, category?, points, answer? }
-//   teams [{ id, name, side, score, rank }], sides { student, prof }, buzzes, floorTeam, upNext, attempted
-//   answerRemainingMs, answerTotalMs, lockInCount, lockInPoints, result, crowd, answersOpen
+//   teams [{ id, name, side, score, rank }], sides { student, prof }, buzzes, floorTeam, upNext
+//   readOut [{ team, answer, correct }], answerRemainingMs, answerTotalMs, answerCount
+//   lockInPoints, result, crowd, answersOpen, music
 //   me { id, name, side, score, code, rank, rankOf }
-//   buzzer: "locked" | "ready" | "buzzed" | "floor" | "tried" | "over", place (number or null)
-//   myLockIn, canLockIn
+//   buzzer: "locked" | "ready" | "buzzed" | "floor" | "tried" | "missed" | "over", place (number or null)
+//   myAnswer, canAnswer
 //   stats { buzzesWon, correct, wrong, steals, accuracy, avgReactionMs, fastestReactionMs, lockInHits }
 //   history [{ questionNumber, type, result, points }]
 // player.js may only read these fields.
-// The server never sends the raw state: it holds the answers and every team's
-// rejoin code, and anything sent to a browser can be read in its developer tools.
+// The server never sends the raw state: it holds the answers, every team's sealed
+// answer and every rejoin code, and anything sent to a browser can be read in its
+// developer tools. A sealed answer reaches other pages only once it has been read out.
 // Views only copy; they never change the state.
 
-import { ANSWER_SECONDS } from "./config.js";
-import { currentQuestion, upNext } from "./game.js";
-import { pointsFor, lockInPoints } from "./scoring.js";
+import { currentQuestion, upNext, answerDeadline } from "./game.js";
+import { pointsFor, lockInPoints, answerSeconds } from "./scoring.js";
 import { crowdView } from "./crowd.js";
+import { parseYouTube } from "./music.js";
 
 function questionFor(state, includeAnswer) {
   const q = currentQuestion(state);
   if (!q) return null;
-  const { answer, points, id, ...rest } = q;
-  const shown = { ...rest, points: pointsFor(q) };
-  if (includeAnswer) shown.answer = answer;
+  // Copy only the fields a page may see: never the answer (until the reveal), its other
+  // accepted spellings, or the raw music link.
+  const { type, prompt, choices, category } = q;
+  const shown = { type, prompt, points: pointsFor(q), seconds: answerSeconds(q) };
+  if (choices) shown.choices = choices;
+  if (category) shown.category = category;
+  if (includeAnswer) shown.answer = q.answer;
   return shown;
 }
 
@@ -37,15 +43,19 @@ export function rankOf(teams, teamId) {
 // What the team's buzzer should show. Most specific checks first.
 export function buzzerState(state, teamId) {
   const current = state.current;
+  const mine = current.answers[teamId];
   if (state.phase === "lobby" || state.phase === "preview") return { buzzer: "locked", place: null };
   if (state.phase === "revealed") return { buzzer: "over", place: null };
+  if (state.phase === "open") {
+    const position = current.buzzes.findIndex((b) => b.teamId === teamId);
+    return mine ? { buzzer: "buzzed", place: position + 1 } : { buzzer: "ready", place: null };
+  }
+  // Judging: the sealed answers are being read out.
+  if (!mine) return { buzzer: "missed", place: null };
   if (current.activeTeamId === teamId) return { buzzer: "floor", place: null };
   if (current.attempted.includes(teamId)) return { buzzer: "tried", place: null };
-  if (state.phase === "open") return { buzzer: "ready", place: null };
-  // Someone else is answering. This team is waiting in the steal order.
   const index = upNext(state).indexOf(teamId);
-  const buzzed = current.buzzes.some((b) => b.teamId === teamId);
-  return { buzzer: buzzed ? "buzzed" : "ready", place: index >= 0 ? index + 1 : null };
+  return { buzzer: "buzzed", place: index >= 0 ? index + 1 : null };
 }
 
 export function teamStats(team) {
@@ -64,16 +74,18 @@ export function teamStats(team) {
 // One line per finished question, from this team's point of view.
 export function teamHistory(state, teamId) {
   return state.history.map((record) => {
-    let result = "—";
+    let result = "No answer";
     let points = 0;
     if (record.winnerTeamId === teamId) {
       result = record.attempted[0] === teamId ? "Correct" : "Steal";
       points = record.points;
     } else if (record.lockInsAwarded.includes(teamId)) {
-      result = "Lock-in";
+      result = "Also right";
       points = record.lockInPoints;
     } else if (record.attempted.includes(teamId)) {
       result = "Wrong";
+    } else if (record.answered.includes(teamId)) {
+      result = "No points";
     }
     return { questionNumber: record.questionNumber, type: record.type, result, points };
   });
@@ -84,9 +96,25 @@ function teamSummary(team) {
   return { id: team.id, name: team.name, side: team.side };
 }
 
+// What the projector should play: the question's own theme while a question with
+// one is on screen, otherwise the background link.
+export function musicView(state) {
+  const music = state.music ?? { background: null, playing: false, volume: 60 };
+  const question = state.phase === "lobby" ? null : currentQuestion(state);
+  return {
+    playing: music.playing,
+    volume: music.volume,
+    background: parseYouTube(music.background),
+    theme: question?.music ? { questionNumber: state.questionIndex + 1, ...parseYouTube(question.music) } : null,
+  };
+}
+
 export function publicView(state, now) {
   const current = state.current;
-  const answering = state.phase === "answering";
+  const judging = state.phase === "judging";
+  const question = currentQuestion(state);
+  const deadline = answerDeadline(state);
+  const readIds = current.activeTeamId ? [...current.attempted, current.activeTeamId] : current.attempted;
   return {
     phase: state.phase,
     questionNumber: state.questionIndex + 1,
@@ -101,29 +129,34 @@ export function publicView(state, now) {
       student: Object.values(state.teams).filter((t) => t.side === "student").reduce((sum, t) => sum + t.score, 0),
       prof: Object.values(state.teams).filter((t) => t.side === "prof").reduce((sum, t) => sum + t.score, 0),
     },
+    // The order teams locked in, and how fast. Who answered, never what.
     buzzes: current.buzzes.map(({ teamId, at }) => ({
       teamId,
       name: state.teams[teamId]?.name ?? "?",
       ms: at - current.openedAt,
     })),
-    floorTeam: answering ? teamSummary(state.teams[current.activeTeamId]) : null,
-    upNext: answering ? upNext(state).map((id) => teamSummary(state.teams[id])) : [],
-    attempted: current.attempted.map((id) => teamSummary(state.teams[id])),
-    answerTotalMs: ANSWER_SECONDS * 1000,
-    answerRemainingMs: answering
-      ? Math.max(0, current.answeringSince + ANSWER_SECONDS * 1000 - now)
-      : null,
-    lockInCount: Object.keys(current.lockIns).length,
+    // Answers already read out, in reading order, each with its ruling (null: the host is deciding).
+    readOut: readIds.filter((id) => state.teams[id]).map((id) => ({
+      team: teamSummary(state.teams[id]),
+      answer: current.answers[id].answer,
+      correct: id === current.activeTeamId ? null : current.answers[id].correct,
+    })),
+    floorTeam: judging ? teamSummary(state.teams[current.activeTeamId]) : null,
+    upNext: judging ? upNext(state).map((id) => teamSummary(state.teams[id])) : [],
+    answerTotalMs: question ? answerSeconds(question) * 1000 : 0,
+    answerRemainingMs: state.phase === "open" ? Math.max(0, deadline - now) : null,
+    answerCount: current.buzzes.length,
     crowd: crowdView(state.crowd, state.phase),
-    // Lock-ins and answer-along close together, at the first judgement.
-    answersOpen: ["preview", "open", "answering"].includes(state.phase) && current.lockInsOpen,
-    lockInPoints: currentQuestion(state) ? lockInPoints(currentQuestion(state)) : 0,
+    // Crowd answer-along closes with the teams' answers, before anything is read out.
+    answersOpen: state.phase === "preview" || state.phase === "open",
+    lockInPoints: question ? lockInPoints(question) : 0,
+    music: musicView(state),
     result:
       state.phase === "revealed"
         ? {
             winner: teamSummary(state.teams[current.winnerTeamId]),
             points: current.pointsAwarded,
-            lockInWinners: Object.entries(current.lockIns)
+            lockInWinners: Object.entries(current.answers)
               .filter(([, entry]) => entry.awarded)
               .map(([id]) => teamSummary(state.teams[id])),
           }
@@ -134,8 +167,9 @@ export function publicView(state, now) {
 export function teamView(state, teamId, now) {
   const team = state.teams[teamId];
   const current = state.current;
-  const entry = current.lockIns[teamId];
-  const lockInsAllowed = ["preview", "open", "answering"].includes(state.phase) && current.lockInsOpen;
+  const entry = current.answers[teamId];
+  const ruled = state.phase === "revealed" || current.attempted.includes(teamId);
+  const deadline = answerDeadline(state);
   return {
     ...publicView(state, now),
     me: {
@@ -145,30 +179,37 @@ export function teamView(state, teamId, now) {
     ...buzzerState(state, teamId),
     stats: teamStats(team),
     history: teamHistory(state, teamId),
-    // Only this team's own lock-in, and whether it was right only once the answer is out.
-    myLockIn: entry
-      ? { answer: entry.answer, correct: state.phase === "revealed" ? entry.correct : undefined, awarded: entry.awarded }
+    // Only this team's own answer, and whether it was right only once it has been ruled on.
+    myAnswer: entry
+      ? { answer: entry.answer, correct: ruled ? entry.correct : undefined, awarded: entry.awarded }
       : null,
-    canLockIn: lockInsAllowed && !entry && current.activeTeamId !== teamId && !current.attempted.includes(teamId),
+    canAnswer: state.phase === "open" && !entry && deadline !== null && now <= deadline,
   };
 }
 
 export function adminView(state, now) {
   const view = publicView(state, now);
+  const current = state.current;
   return {
     ...view,
     question: questionFor(state, true),
     teams: view.teams.map((t) => ({ ...t, code: state.teams[t.id].code })),
     registrationOpen: state.registrationOpen,
-    lockIns: Object.entries(state.current.lockIns).map(([id, entry]) => ({
-      teamId: id,
-      name: state.teams[id]?.name ?? "?",
-      ...entry,
+    // Every sealed answer, in lock-in order. Only the host sees these before they are read.
+    answers: current.buzzes.filter((b) => state.teams[b.teamId]).map(({ teamId }) => ({
+      teamId,
+      name: state.teams[teamId].name,
+      read: current.attempted.includes(teamId) || current.activeTeamId === teamId,
+      winner: current.winnerTeamId === teamId,
+      ...current.answers[teamId],
     })),
+    waitingOn: current.activeTeamId ? teamSummary(state.teams[current.activeTeamId]) : null,
+    musicLink: state.music?.background ?? "",
     questionList: state.questions.map((q, i) => ({
       number: i + 1,
       type: q.type,
       prompt: q.prompt,
+      music: Boolean(q.music),
       played: i <= state.questionIndex,
     })),
   };

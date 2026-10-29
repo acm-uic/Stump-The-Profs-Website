@@ -1,13 +1,14 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { createGame, registerTeam, showQuestion, openBuzzers, buzz, judge, lockIn } from "../game.js";
+import { createGame, registerTeam, showQuestion, openBuzzers, buzz, closeAnswers, nextAnswer, setMusic } from "../game.js";
 import { publicView, teamView, adminView, rankOf, buzzerState, teamStats } from "../views.js";
 
 function playing() {
   const state = createGame([{ id: "q1", type: "mc", prompt: "Pick", choices: ["A", "B"], answer: 1 }]);
   const a = registerTeam(state, { name: "Byte Me", side: "student" }).team;
+  const b = registerTeam(state, { name: "Dr. Null", side: "prof" }).team;
   showQuestion(state);
-  return { state, a };
+  return { state, a, b };
 }
 
 test("before the reveal, the public view has no answer and no team codes", () => {
@@ -35,21 +36,55 @@ test("the admin view always has the answer and every code", () => {
 test("after the reveal, everyone sees the answer and the winner", () => {
   const { state, a } = playing();
   openBuzzers(state, 1000);
-  buzz(state, a.id, 1300);
-  judge(state, true, 1500);
+  buzz(state, a.id, 1, 1300);
+  nextAnswer(state);
   const view = publicView(state, 1600);
   assert.equal(view.question.answer, 1);
   assert.equal(view.result.winner.name, "Byte Me");
   assert.equal(view.result.points, 200);
 });
 
-test("answer time counts down from 20 s while a team has the floor, and never goes negative", () => {
+test("the answer clock counts down 20 s for mc from the moment answers open, never below zero", () => {
   const { state, a } = playing();
   openBuzzers(state, 1000);
-  buzz(state, a.id, 2000);
-  assert.equal(publicView(state, 7000).answerRemainingMs, 15000);
+  buzz(state, a.id, 0, 2000);
+  assert.equal(publicView(state, 7000).answerRemainingMs, 14000);
   assert.equal(publicView(state, 99000).answerRemainingMs, 0);
   assert.equal(publicView(state, 2000).buzzes[0].ms, 1000);
+});
+
+test("a sealed answer reaches no page but the admin's until it is read out", () => {
+  const { state, a, b } = playing();
+  openBuzzers(state, 1000);
+  buzz(state, a.id, 0, 1100);
+  const secret = (view) => JSON.stringify(view.readOut) !== "[]" || "answers" in view;
+  assert.equal(secret(publicView(state, 1200)), false);
+  assert.equal(secret(teamView(state, b.id, 1200)), false);
+  assert.equal(teamView(state, a.id, 1200).myAnswer.answer, 0); // a team sees its own
+  assert.equal(teamView(state, a.id, 1200).myAnswer.correct, undefined); // but not whether it is right
+  assert.equal(adminView(state, 1200).answers[0].answer, 0);
+  buzz(state, b.id, 1, 1300); // everyone in: judging
+  nextAnswer(state); // A read out, wrong
+  assert.deepEqual(publicView(state, 1400).readOut, [{ team: { id: a.id, name: "Byte Me", side: "student" }, answer: 0, correct: false }]);
+});
+
+test("a question's accepted spellings and music link never reach the pages", () => {
+  const state = createGame([{ id: "q1", type: "free", prompt: "?", answer: "yes", accept: ["yep"], music: "https://youtu.be/dQw4w9WgXcQ?t=5" }]);
+  registerTeam(state, { name: "A", side: "student" });
+  showQuestion(state);
+  const view = publicView(state, 0);
+  assert.equal(JSON.stringify(view.question).includes("yep"), false);
+  assert.equal("music" in view.question, false);
+  assert.deepEqual(view.music.theme, { questionNumber: 1, videoId: "dQw4w9WgXcQ", playlistId: null, start: 5, end: null });
+});
+
+test("music: the question's theme while it is on screen, the background otherwise", () => {
+  const state = createGame([{ id: "q1", type: "tf", prompt: "?", answer: true }]);
+  setMusic(state, { background: "https://www.youtube.com/playlist?list=PLx0sYbCqOb8TBPRdmBHs5Iftvv9TPboYG", playing: true });
+  const view = publicView(state, 0);
+  assert.equal(view.music.theme, null);
+  assert.equal(view.music.background.playlistId, "PLx0sYbCqOb8TBPRdmBHs5Iftvv9TPboYG");
+  assert.equal(view.music.playing, true);
 });
 
 test("building views never changes the state", () => {
@@ -92,15 +127,17 @@ test("buzzer state for each situation", () => {
   assert.equal(buzzerState(state, a.id).buzzer, "locked"); // preview
   openBuzzers(state, 1000);
   assert.equal(buzzerState(state, a.id).buzzer, "ready");
-  buzz(state, a.id, 1100); // A has the floor
-  buzz(state, c.id, 1200); // C buzzed late
-  assert.equal(buzzerState(state, a.id).buzzer, "floor");
-  // Up next after student A: profs first (B, D), with student C (buzzed) in between.
-  assert.deepEqual(buzzerState(state, b.id), { buzzer: "ready", place: 1 });
-  assert.deepEqual(buzzerState(state, c.id), { buzzer: "buzzed", place: 2 });
-  judge(state, false, 1300);
+  buzz(state, a.id, false, 1100);
+  buzz(state, c.id, false, 1200);
+  buzz(state, b.id, true, 1300);
+  assert.deepEqual(buzzerState(state, c.id), { buzzer: "buzzed", place: 2 }); // second to lock in
+  closeAnswers(state); // the host closes answers before D answers
+  assert.equal(buzzerState(state, d.id).buzzer, "missed");
+  // Reading order: A (fastest), then the profs' B, then C.
+  assert.deepEqual(buzzerState(state, c.id), { buzzer: "buzzed", place: 3 });
+  nextAnswer(state); // A wrong
   assert.equal(buzzerState(state, a.id).buzzer, "tried");
-  judge(state, true, 1400);
+  nextAnswer(state); // B right
   assert.equal(buzzerState(state, d.id).buzzer, "over");
 });
 
@@ -113,23 +150,24 @@ test("the team view has exactly the agreed fields, and a history line per finish
   const b = registerTeam(state, { name: "B", side: "prof" }).team;
   showQuestion(state);
   openBuzzers(state, 1000);
-  lockIn(state, b.id, 0);
-  buzz(state, a.id, 1250);
-  judge(state, true, 1300); // A correct 200, B lock-in 50
+  buzz(state, a.id, 0, 1250);
+  buzz(state, b.id, 0, 1260);
+  nextAnswer(state); // A correct 200, B also right 50
   showQuestion(state);
-  openBuzzers(state, 2000);
-  buzz(state, a.id, 2100);
-  judge(state, false, 2200);
-  judge(state, true, 2300); // B steals 100
+  openBuzzers(state, 100_000);
+  buzz(state, a.id, false, 100_100);
+  buzz(state, b.id, true, 100_200);
+  nextAnswer(state);
+  nextAnswer(state); // A wrong, B steals 100
 
   const view = teamView(state, b.id, 3000);
   assert.deepEqual(Object.keys(view).sort(), [
-    "answerRemainingMs", "answerTotalMs", "answersOpen", "attempted", "buzzer", "buzzes", "canLockIn", "crowd", "floorTeam",
-    "history", "lockInCount", "lockInPoints", "me", "myLockIn", "phase", "place", "question",
-    "questionNumber", "questionTotal", "result", "sides", "stats", "teams", "upNext",
+    "answerCount", "answerRemainingMs", "answerTotalMs", "answersOpen", "buzzer", "buzzes", "canAnswer", "crowd", "floorTeam",
+    "history", "lockInPoints", "me", "music", "myAnswer", "phase", "place", "question",
+    "questionNumber", "questionTotal", "readOut", "result", "sides", "stats", "teams", "upNext",
   ]);
   assert.deepEqual(view.history, [
-    { questionNumber: 1, type: "mc", result: "Lock-in", points: 50 },
+    { questionNumber: 1, type: "mc", result: "Also right", points: 50 },
     { questionNumber: 2, type: "tf", result: "Steal", points: 100 },
   ]);
   assert.equal(view.me.score, 150);

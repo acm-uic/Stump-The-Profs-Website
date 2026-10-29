@@ -1,4 +1,6 @@
-import { connect, PHASE_LABELS, SIDE_NAMES, answerText, renderQuestion, startCountdown, upNextText } from "/common.js";
+import {
+  connect, PHASE_LABELS, SIDE_NAMES, answerText, renderQuestion, startCountdown, upNextText, choiceText, lockedInText,
+} from "/common.js";
 
 const socket = connect();
 const $ = (selector) => document.querySelector(selector);
@@ -53,6 +55,7 @@ function send(action) {
 }
 $("#show").addEventListener("click", () => send({ type: "show" }));
 $("#open").addEventListener("click", () => send({ type: "open" }));
+$("#next").addEventListener("click", () => send({ type: "next" }));
 $("#correct").addEventListener("click", () => send({ type: "judge", correct: true }));
 $("#wrong").addEventListener("click", () => send({ type: "judge", correct: false }));
 $("#reveal").addEventListener("click", () => send({ type: "reveal" }));
@@ -105,7 +108,7 @@ $("#upload").addEventListener("change", async () => {
 
 // Keyboard shortcuts for the host. Clicking a disabled button does nothing, and the
 // server checks the phase anyway, so a double press cannot judge twice.
-const SHORTCUTS = { n: "#show", o: "#open", c: "#correct", w: "#wrong", r: "#reveal", z: "#undo" };
+const SHORTCUTS = { n: "#show", o: "#open", a: "#next", c: "#correct", w: "#wrong", r: "#reveal", z: "#undo" };
 document.addEventListener("keydown", (event) => {
   if (event.target.tagName === "INPUT" || event.metaKey || event.ctrlKey || event.altKey || event.repeat) return;
   const button = $(SHORTCUTS[event.key.toLowerCase()] ?? "#none");
@@ -114,35 +117,37 @@ document.addEventListener("keydown", (event) => {
 
 // ---- Drawing ----
 
-function lockInRow(view, entry) {
+// One sealed answer: who, how fast, what they locked in, and where it stands.
+function answerRow(view, entry) {
   const li = document.createElement("li");
   const left = document.createElement("span");
-  left.textContent = `${entry.name}: ${lockInAnswerText(view.question, entry.answer)} `;
+  const name = document.createElement("strong");
+  name.textContent = entry.name;
+  const answer = document.createElement("span");
+  answer.className = "sealed-answer";
+  answer.textContent = choiceText(view.question, entry.answer);
+  left.append(name, answer);
   const mark = document.createElement("span");
-  if (entry.correct === true) { mark.textContent = entry.awarded ? `✓ +${view.lockInPoints}` : "✓ (won the question)"; mark.className = "mark-right"; }
-  else if (entry.correct === false) { mark.textContent = "✗"; mark.className = "mark-wrong"; }
-  else { mark.textContent = view.phase === "revealed" ? "needs marking" : "free response: mark after reveal"; mark.className = "mark-pending"; }
-  left.append(mark);
-  li.append(left);
+  if (entry.winner) { mark.textContent = `Won +${view.result?.points ?? ""}`; mark.className = "mark-right"; }
+  else if (entry.correct === true) { mark.textContent = entry.awarded ? `Also right +${view.lockInPoints}` : "Right"; mark.className = "mark-right"; }
+  else if (entry.correct === false) { mark.textContent = entry.read || view.phase === "revealed" ? "Wrong" : "Wrong, not read yet"; mark.className = "mark-wrong"; }
+  else if (view.waitingOn?.id === entry.teamId) { mark.textContent = "Being read: Correct or Wrong?"; mark.className = "mark-pending"; }
+  else { mark.textContent = view.phase === "revealed" ? "Needs marking" : "You decide when it is read"; mark.className = "mark-pending"; }
+  li.append(left, mark);
 
-  // Free response lock-ins are marked by the host after the reveal. Clicking again is safe.
-  if (view.question?.type === "free" && view.phase === "revealed") {
+  // Free response answers can be marked after the reveal. Clicking again is safe.
+  if (view.question?.type === "free" && view.phase === "revealed" && !entry.winner) {
     const buttons = document.createElement("span");
     for (const [label, correct] of [["Right", true], ["Wrong", false]]) {
       const button = document.createElement("button");
+      button.type = "button";
       button.textContent = label;
-      button.addEventListener("click", () => send({ type: "markLockIn", teamId: entry.teamId, correct }));
+      button.addEventListener("click", () => send({ type: "markAnswer", teamId: entry.teamId, correct }));
       buttons.append(button);
     }
     li.append(buttons);
   }
   return li;
-}
-
-function lockInAnswerText(question, answer) {
-  if (question?.type === "mc") return `${String.fromCharCode(65 + answer)}. ${question.choices[answer]}`;
-  if (question?.type === "tf") return answer ? "True" : "False";
-  return `"${answer}"`;
 }
 
 // One team: name, side, rejoin code (to read out if a laptop loses it), score,
@@ -177,7 +182,7 @@ function teamRow(team, phase) {
   const kick = document.createElement("button");
   kick.className = "kick";
   kick.textContent = "Remove";
-  kick.disabled = phase === "open" || phase === "answering";
+  kick.disabled = phase === "open" || phase === "judging";
   kick.addEventListener("click", () => {
     if (confirm(`Remove ${team.name} from the game?`)) send({ type: "kick", teamId: team.id });
   });
@@ -197,11 +202,13 @@ socket.on("state", (view) => {
   $("#answer-box").hidden = !view.question;
   $("#answer").textContent = answerText(view.question);
 
-  $("#floor").textContent = view.floorTeam
-    ? `${view.floorTeam.name} (${SIDE_NAMES[view.floorTeam.side]}) has the floor`
-    : "";
-  $("#up-next").textContent = view.phase === "answering"
-    ? upNextText(view) || "Nobody left after this team: Wrong will end the question"
+  const waiting = view.answers.find((entry) => entry.teamId === view.waitingOn?.id);
+  $("#floor").textContent = phase === "open"
+    ? `${lockedInText(view)}. Answers close by themselves when the clock runs out, or press A to start reading now.`
+    : waiting ? `${waiting.name} says: ${choiceText(view.question, waiting.answer)}`
+    : phase === "judging" ? "Press A to read the next answer." : "";
+  $("#up-next").textContent = phase === "judging"
+    ? upNextText(view) || "This is the last answer: Wrong ends the question"
     : "";
   $("#result").textContent = view.result
     ? view.result.winner ? `${view.result.winner.name} got it: +${view.result.points}` : "Nobody got it"
@@ -210,28 +217,25 @@ socket.on("state", (view) => {
   const isLast = view.questionNumber >= view.questionTotal;
   $("#show").disabled = !((phase === "lobby" || phase === "revealed") && !isLast);
   $("#open").disabled = phase !== "preview";
-  $("#correct").disabled = phase !== "answering";
-  $("#wrong").disabled = phase !== "answering";
-  $("#reveal").disabled = !(phase === "open" || phase === "answering");
+  $("#next").disabled = !(phase === "open" || (phase === "judging" && !view.waitingOn));
+  $("#correct").disabled = !view.waitingOn;
+  $("#wrong").disabled = !view.waitingOn;
+  $("#reveal").disabled = !(phase === "open" || phase === "judging");
   $("#undo").disabled = view.undoCount === 0;
   $("#undo").firstChild.textContent = view.undoCount ? `Undo (${view.undoCount})` : "Undo";
   $("#registration").textContent = view.registrationOpen ? "Close registration" : "Reopen registration";
 
-  $("#buzzes").replaceChildren(...view.buzzes.map((b) => {
-    const li = document.createElement("li");
-    li.textContent = `${b.name} (${(b.ms / 1000).toFixed(2)} s)`;
-    return li;
-  }));
-
-  $("#lockin-value").textContent = view.question ? `(worth ${view.lockInPoints} each)` : "";
-  if (view.lockIns.length === 0) {
+  $("#lockin-value").textContent = view.question ? `(in lock-in order; other right answers get ${view.lockInPoints})` : "";
+  if (view.answers.length === 0) {
     const li = document.createElement("li");
     li.className = "empty-note";
-    li.textContent = "No lock-ins yet";
-    $("#lockins").replaceChildren(li);
+    li.textContent = phase === "open" ? "Nobody has locked in yet" : "No answers yet";
+    $("#answers").replaceChildren(li);
   } else {
-    $("#lockins").replaceChildren(...view.lockIns.map((entry) => lockInRow(view, entry)));
+    $("#answers").replaceChildren(...view.answers.map((entry) => answerRow(view, entry)));
   }
+
+  drawMusic(view);
 
   // Don't redraw the team list while the host is part-way through typing an adjustment.
   const typing = document.activeElement?.tagName === "INPUT" && $("#teams").contains(document.activeElement)
@@ -243,9 +247,44 @@ socket.on("state", (view) => {
 
   $("#question-list").replaceChildren(...view.questionList.map((q) => {
     const li = document.createElement("li");
-    li.textContent = `[${q.type}] ${q.prompt}`;
+    li.textContent = `[${q.type}] ${q.prompt}${q.music ? " (has music)" : ""}`;
     if (q.number === view.questionNumber) li.className = "current";
     else if (q.played) li.className = "played";
     return li;
   }));
 });
+
+// ---- Music: the projector plays it; this panel steers it ----
+
+$("#music-form").addEventListener("submit", (event) => {
+  event.preventDefault();
+  $("#music-message").textContent = "";
+  socket.emit("admin:action", { type: "music", background: $("#music-link").value.trim() }, (reply) => {
+    if (!reply.ok) $("#music-message").textContent = reply.error;
+  });
+});
+$("#music-toggle").addEventListener("click", () => {
+  send({ type: "music", playing: $("#music-toggle").dataset.playing !== "true" });
+});
+$("#music-volume").addEventListener("change", () => {
+  send({ type: "music", volume: Number($("#music-volume").value) });
+});
+socket.on("music:status", ({ message }) => {
+  $("#music-message").textContent = `Projector: ${message}`;
+});
+
+const clock = (seconds) => `${Math.floor(seconds / 60)}:${String(seconds % 60).padStart(2, "0")}`;
+
+function drawMusic(view) {
+  const { music } = view;
+  // Leave the link box and the slider alone while the host is using them.
+  if (document.activeElement !== $("#music-link")) $("#music-link").value = view.musicLink;
+  if (document.activeElement !== $("#music-volume")) $("#music-volume").value = music.volume;
+  $("#music-toggle").dataset.playing = String(music.playing);
+  $("#music-toggle").textContent = music.playing ? "Pause" : "Play";
+  const track = music.theme ?? music.background;
+  $("#music-now").textContent = !track ? "No background link set"
+    : !music.playing ? "Paused"
+    : music.theme ? `Playing question ${music.theme.questionNumber}'s theme from ${clock(music.theme.start)}`
+    : "Playing the background music";
+}

@@ -3,15 +3,23 @@
 // Points for a correct answer, by question type. A question can override with its own "points".
 export const POINTS = { free: 300, mc: 200, tf: 100 };
 
-// How long the team with the floor has to answer, shown as a countdown.
-export const ANSWER_SECONDS = 20;
+// How long every team has to pick or type an answer and lock it in, counted from the
+// moment the host opens answers. A question can override with its own "seconds".
+export const ANSWER_SECONDS = { free: 30, mc: 20, tf: 15 };
 
-// Share of a question's points earned by a correct lock-in (a secret answer from a
-// team that did not have the floor). 0.25 means 75 / 50 / 25 for free / mc / tf.
+// A lock-in that arrives this soon after the clock hits zero still counts, so a team
+// that pressed BUZZ at 0.1 s left is not beaten by Wi-Fi lag.
+export const LATE_GRACE_MS = 750;
+
+// Share of a question's points for a correct answer that was not the first correct one
+// in the reading order. 0.25 means 75 / 50 / 25 for free / mc / tf.
 export const LOCKIN_SHARE = 0.25;
 
-// Longest free-response lock-in, so the admin screen can show them all.
+// Longest free-response answer, so the admin screen can show them all.
 export const LOCKIN_MAX_LENGTH = 80;
+
+// Longest answer window a question may set for itself.
+export const MAX_ANSWER_SECONDS = 300;
 
 // Crowd points for spectators: a right prediction (which side wins the question)
 // and a right answer-along pick on multiple choice and true/false.

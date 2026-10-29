@@ -37,13 +37,13 @@ test("predictions: only in preview, only valid sides, and you can change your mi
 
 test("picks: mc/tf only, while answers are open, valid choices, once", () => {
   const { crowd, ids: [ana, ben] } = crowdOf("Ana", "Ben");
-  assert.equal(pick(crowd, ana, 1, "open", FREE, true).ok, false);
-  assert.equal(pick(crowd, ana, 1, "answering", MC, false).ok, false); // closed at first judgement
-  assert.equal(pick(crowd, ana, 9, "open", MC, true).ok, false);
-  assert.equal(pick(crowd, ana, "1", "open", MC, true).ok, false);
-  assert.equal(pick(crowd, ana, 1, "open", MC, true).ok, true);
-  assert.equal(pick(crowd, ana, 2, "open", MC, true).ok, false);
-  assert.equal(pick(crowd, ben, true, "open", { type: "tf", answer: false }, true).ok, true);
+  assert.equal(pick(crowd, ana, 1, "open", FREE).ok, false);
+  assert.equal(pick(crowd, ana, 1, "judging", MC).ok, false); // closed before answers are read out
+  assert.equal(pick(crowd, ana, 9, "open", MC).ok, false);
+  assert.equal(pick(crowd, ana, "1", "open", MC).ok, false);
+  assert.equal(pick(crowd, ana, 1, "open", MC).ok, true);
+  assert.equal(pick(crowd, ana, 2, "open", MC).ok, false);
+  assert.equal(pick(crowd, ben, true, "open", { type: "tf", answer: false }).ok, true);
 });
 
 test("settling: right predictions and right picks each earn 10 crowd points", () => {
@@ -51,8 +51,8 @@ test("settling: right predictions and right picks each earn 10 crowd points", ()
   predict(crowd, ana, "student", "preview");
   predict(crowd, ben, "prof", "preview");
   predict(crowd, cy, "none", "preview");
-  pick(crowd, ana, 1, "open", MC, true);
-  pick(crowd, ben, 0, "open", MC, true);
+  pick(crowd, ana, 1, "open", MC);
+  pick(crowd, ben, 0, "open", MC);
   settleQuestion(crowd, { winnerSide: "prof", question: MC });
   assert.equal(crowd.spectators[ana].score, 10); // wrong prediction, right pick
   assert.equal(crowd.spectators[ben].score, 10); // right prediction, wrong pick
@@ -68,10 +68,10 @@ test("'nobody' is right when no team wins", () => {
 
 test("the pick split stays hidden until the reveal, then shows percentages", () => {
   const { crowd, ids } = crowdOf("A", "B", "C", "D");
-  pick(crowd, ids[0], 1, "open", MC, true);
-  pick(crowd, ids[1], 1, "open", MC, true);
-  pick(crowd, ids[2], 1, "open", MC, true);
-  pick(crowd, ids[3], 3, "open", MC, true);
+  pick(crowd, ids[0], 1, "open", MC);
+  pick(crowd, ids[1], 1, "open", MC);
+  pick(crowd, ids[2], 1, "open", MC);
+  pick(crowd, ids[3], 3, "open", MC);
   const before = crowdView(crowd, "answering");
   assert.equal(before.pickSplit, null);
   assert.equal(before.pickCount, 4);

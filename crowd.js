@@ -45,14 +45,14 @@ export function predict(crowd, id, side, phase) {
   return { ok: true };
 }
 
-// Answer along on mc and tf. Open until the first spoken answer is judged, exactly
-// like team lock-ins, and once only.
-export function pick(crowd, id, choice, phase, question, answersOpen) {
+// Answer along on mc and tf. Open while the teams are answering, closed before the
+// first sealed answer is read out, and once only.
+export function pick(crowd, id, choice, phase, question) {
   if (!crowd.spectators[id]) return { ok: false, error: "Join the crowd first" };
   if (!question || (question.type !== "mc" && question.type !== "tf")) {
     return { ok: false, error: "Answer-along is for multiple choice and true/false" };
   }
-  if (!["preview", "open", "answering"].includes(phase) || !answersOpen) {
+  if (!["preview", "open"].includes(phase)) {
     return { ok: false, error: "Answers are closed" };
   }
   const valid = question.type === "mc"

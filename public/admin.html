@@ -35,7 +35,8 @@
 
         <div class="controls">
           <button type="button" id="show">Show next question<kbd>N</kbd></button>
-          <button type="button" id="open">Open buzzers<kbd>O</kbd></button>
+          <button type="button" id="open">Open answers<kbd>O</kbd></button>
+          <button type="button" id="next">Read next answer<kbd>A</kbd></button>
           <button type="button" id="correct">Correct<kbd>C</kbd></button>
           <button type="button" id="wrong">Wrong<kbd>W</kbd></button>
           <button type="button" id="reveal">Reveal answer<kbd>R</kbd></button>
@@ -43,13 +44,8 @@
         <p id="message"></p>
 
         <section class="panel">
-          <h2>Lock-ins <small id="lockin-value"></small></h2>
-          <ul class="teams" id="lockins"></ul>
-        </section>
-
-        <section class="panel">
-          <h2>Buzzes</h2>
-          <ol id="buzzes"></ol>
+          <h2>Sealed answers <small id="lockin-value"></small></h2>
+          <ol class="teams answers" id="answers"></ol>
         </section>
       </main>
 
@@ -62,6 +58,19 @@
           <label class="upload">Upload questions… <input id="upload" type="file" accept=".json,application/json"></label>
         </div>
         <p id="tool-message"></p>
+        <section class="panel clay music-panel">
+          <h2>Music</h2>
+          <form id="music-form">
+            <input id="music-link" type="url" placeholder="YouTube link for background music" aria-label="Background music link" autocomplete="off">
+            <button type="submit" class="btn">Set</button>
+          </form>
+          <div class="music-controls">
+            <button type="button" id="music-toggle" class="btn">Play</button>
+            <label class="volume">Volume <input id="music-volume" type="range" min="0" max="100" step="5"></label>
+          </div>
+          <p class="music-now" id="music-now"></p>
+          <p class="error" id="music-message"></p>
+        </section>
         <section class="panel clay">
           <h2>Teams</h2>
           <div id="teams"></div>

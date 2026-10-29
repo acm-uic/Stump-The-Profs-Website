@@ -1,7 +1,8 @@
 import {
   connect, PHASE_LABELS, answerText, renderQuestion, renderTeamList, startCountdown, upNextText, formatMs,
-  letter, ordinal,
+  letter, ordinal, choiceText, lockedInText, renderReadOut,
 } from "/common.js";
+import { startMusic } from "/music.js";
 
 const socket = connect();
 const $ = (selector) => document.querySelector(selector);
@@ -232,18 +233,25 @@ socket.on("state", (view) => {
   renderQuestion($("#question"), view.question);
   renderResult(view);
 
-  $("#floor-box").hidden = !view.floorTeam;
-  $("#floor").textContent = view.floorTeam ? `${view.floorTeam.name} is answering` : "";
+  // While answers are open: the clock and how many teams are in. While they are read
+  // out: whose answer is up. Nothing anyone typed shows until it is read out.
+  const open = view.phase === "open";
+  $("#floor-box").hidden = !(open || view.floorTeam);
+  $("#floor").textContent = open ? lockedInText(view) : view.floorTeam ? `${view.floorTeam.name} says` : "";
+  $("#countdown-track").hidden = !open;
   startCountdown($("#countdown"), view.answerRemainingMs, view.answerTotalMs, $("#countdown-bar"));
+  const reading = view.floorTeam && view.readOut.find((entry) => entry.team.id === view.floorTeam.id);
+  $("#floor-answer").textContent = reading ? choiceText(view.question, reading.answer) : "";
+  renderReadOut($("#read-out"), { ...view, readOut: view.readOut.filter((entry) => entry.correct !== null) });
   $("#up-next").textContent = upNextText(view);
 
   $("#lockin-line").textContent = view.result?.lockInWinners.length
-    ? `Lock-in bonus (+${view.lockInPoints}): ${view.result.lockInWinners.map((t) => t.name).join(", ")}`
-    : view.lockInCount && view.phase !== "revealed"
-      ? `${view.lockInCount} team${view.lockInCount === 1 ? "" : "s"} locked in an answer`
-      : "";
+    ? `Also right (+${view.lockInPoints}): ${view.result.lockInWinners.map((t) => t.name).join(", ")}`
+    : "";
 
-  // The first three buzzes, with reaction times: fast enough to be exciting, short enough to read.
+  // The first three lock-ins, with reaction times, while answers are open. Once reading
+  // starts, the read-out list takes their place.
+  $("#buzzes").hidden = view.phase !== "open";
   $("#buzzes").replaceChildren(...view.buzzes.slice(0, 3).map((b, i) => {
     const li = document.createElement("li");
     li.textContent = b.name;
@@ -257,4 +265,12 @@ socket.on("state", (view) => {
   renderBoard(view);
   renderCrowdBoard(view);
   renderCrowdPanel();
+  if (isProjector) music.update(view.music);
 });
+
+// ---- Music: only the projector plays it ----
+
+const music = isProjector ? startMusic({
+  hintEl: $("#music-hint"),
+  onProblem: (message) => socket.emit("music:status", { message }),
+}) : { update() {} };

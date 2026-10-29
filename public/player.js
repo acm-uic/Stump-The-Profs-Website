@@ -1,5 +1,6 @@
 import {
-  connect, PHASE_LABELS, SIDE_NAMES, TYPE_LABELS, letter, renderQuestion, startCountdown, formatMs, ordinal,
+  connect, PHASE_LABELS, SIDE_NAMES, TYPE_LABELS, renderQuestion, startCountdown, formatMs, ordinal,
+  choiceText, choiceOptions,
 } from "/common.js";
 
 const socket = connect();
@@ -64,100 +65,140 @@ $("#register").addEventListener("submit", (event) => {
   });
 });
 
-// ---- Buzzing ----
+// ---- Answering: pick or type, then BUZZ seals it ----
 
-$("#buzz").addEventListener("click", () => socket.emit("team:buzz"));
+let lastView = null;
+// The answer picked on this laptop but not locked in yet. Only BUZZ sends it.
+let selection = { questionNumber: null, value: null };
+let deadline = null; // performance.now() when the answer clock runs out here
+let redrawTimer = null;
 
-document.addEventListener("keydown", (event) => {
-  if (event.code !== "Space" || event.repeat) return; // holding space sends one buzz
-  if (event.target.tagName === "INPUT") return;       // typing a lock-in must not buzz
-  event.preventDefault();                              // stop the page scrolling
-  if (!$("#buzz").disabled) socket.emit("team:buzz");
+const hasSelection = () => selection.value !== null && selection.value !== "";
+const timeLeft = () => (deadline === null ? 0 : deadline - performance.now());
+
+function select(value) {
+  if (!lastView || !["preview", "open"].includes(lastView.phase) || lastView.myAnswer) return;
+  selection = { questionNumber: lastView.questionNumber, value };
+  $("#buzz-error").textContent = "";
+  draw(lastView);
+}
+
+function sendBuzz() {
+  if ($("#buzz").disabled) return;
+  $("#buzz").disabled = true; // one press, even before the server replies
+  socket.emit("team:buzz", { answer: selection.value }, (reply) => {
+    if (reply.ok) return;
+    $("#buzz-error").textContent = reply.error;
+    if (lastView) draw(lastView);
+  });
+}
+
+$("#buzz").addEventListener("click", sendBuzz);
+$("#pad-text").addEventListener("input", () => select($("#pad-text").value.trim()));
+$("#pad-text").addEventListener("keydown", (event) => {
+  if (event.key === "Enter") sendBuzz();
 });
+
+// Space buzzes. A to F pick a choice, T and F pick true or false.
+document.addEventListener("keydown", (event) => {
+  if (event.target.tagName === "INPUT" || event.metaKey || event.ctrlKey || event.altKey) return;
+  if (event.code === "Space") {
+    event.preventDefault(); // stop the page scrolling
+    if (!event.repeat) sendBuzz(); // holding space sends one buzz
+    return;
+  }
+  const q = lastView?.question;
+  const key = event.key.toLowerCase();
+  if (q?.type === "tf" && (key === "t" || key === "f")) select(key === "t");
+  else if (q?.type === "mc") {
+    const index = key.charCodeAt(0) - 97;
+    if (key.length === 1 && index >= 0 && index < q.choices.length) select(index);
+  }
+});
+
+// The choice buttons are built once per question, so none is redrawn under a finger.
+let padBuiltFor = null;
+function buildPad(view) {
+  if (padBuiltFor === view.questionNumber) return;
+  padBuiltFor = view.questionNumber;
+  $("#pad-text").value = "";
+  $("#pad-choices").replaceChildren(...choiceOptions(view.question).map(([text, value]) => {
+    const button = document.createElement("button");
+    button.type = "button";
+    button.textContent = text;
+    button.dataset.value = JSON.stringify(value);
+    button.addEventListener("click", () => select(value));
+    return button;
+  }));
+}
+
+function drawPad(view) {
+  const q = view.question;
+  $("#answer-pad").hidden = !q;
+  if (!q) return;
+  buildPad(view);
+  const canPick = ["preview", "open"].includes(view.phase) && !view.myAnswer;
+  const mine = view.myAnswer ? view.myAnswer.answer : selection.value;
+  for (const button of $("#pad-choices").children) {
+    const value = JSON.parse(button.dataset.value);
+    button.disabled = !canPick;
+    button.classList.toggle("chosen", mine === value);
+    button.classList.toggle("sealed", Boolean(view.myAnswer) && mine === value);
+    button.classList.toggle("correct", "answer" in q && q.answer === value);
+  }
+  const text = $("#pad-text");
+  text.hidden = q.type !== "free";
+  text.disabled = !canPick;
+  if (view.myAnswer && q.type === "free") text.value = view.myAnswer.answer;
+}
 
 // The label for each buzzer state. The server decides the state; the page only draws it.
 function buzzerLabel(view) {
-  const { buzzer, place, floorTeam } = view;
-  const line = place === 1 ? "you're next if they miss" : place ? `you're ${ordinal(place)} in line` : "";
-  switch (buzzer) {
-    case "locked": return ["WAIT", view.phase === "preview" ? "Get ready…" : "Waiting for the host"];
-    case "ready": return ["BUZZ", floorTeam ? `${floorTeam.name} is answering. ${capitalise(line || "buzz to get in line")}.` : "Buzzers are open!"];
-    case "buzzed": return ["IN LINE", `${floorTeam.name} is answering. ${capitalise(line)}.`];
-    case "floor": return ["YOUR TURN", "Answer out loud!"];
-    case "tried": return ["ANSWERED", floorTeam ? `${floorTeam.name} is answering` : "Waiting for the others"];
+  const mine = view.myAnswer ? choiceText(view.question, view.myAnswer.answer) : "";
+  switch (view.buzzer) {
+    case "locked": return ["WAIT", view.phase === "preview" ? "Pick your answer now. Buzzers open soon." : "Waiting for the host"];
+    case "ready":
+      if (timeLeft() <= 0) return ["TIME", "The answer clock ran out"];
+      return hasSelection()
+        ? ["BUZZ", `Locks in ${choiceText(view.question, selection.value)}`]
+        : ["PICK", view.question.type === "free" ? "Type your answer above, then buzz" : "Choose an answer above, then buzz"];
+    case "buzzed": return ["LOCKED IN", view.phase === "open"
+      ? `${mine}. You were ${ordinal(view.place)} to buzz. Answers are read when time is up.`
+      : `${mine}. ${view.place === 1 ? "Yours is read next." : `Yours is read ${ordinal(view.place)}.`}`];
+    case "floor": return ["YOUR TURN", `Read it out: ${mine}`];
+    case "tried": return ["WRONG", `${mine} was not it`];
+    case "missed": return ["NO ANSWER", "Time ran out before you locked in"];
     case "over": return ["DONE", resultLine(view)];
     default: return ["", ""];
   }
 }
 
-const capitalise = (text) => text.charAt(0).toUpperCase() + text.slice(1);
-
 function resultLine(view) {
-  const { result, me } = view;
+  const { result, me, myAnswer } = view;
   if (!result) return "";
   if (result.winner?.id === me.id) return `Correct! +${result.points}`;
+  if (myAnswer?.awarded) return `Also right! +${view.lockInPoints}`;
+  if (myAnswer && myAnswer.correct == null) return "The host will mark your answer";
   return result.winner ? `${result.winner.name} got it` : "Nobody got it";
 }
 
-// ---- Lock-ins ----
-
-function sendLockIn(answer) {
-  $("#lockin-error").textContent = "";
-  socket.emit("team:lockin", { answer }, (reply) => {
-    if (!reply.ok) $("#lockin-error").textContent = reply.error;
-  });
-}
-$("#lockin-free").addEventListener("submit", (event) => {
-  event.preventDefault();
-  sendLockIn($("#lockin-text").value);
-});
-
-// Builds the choice buttons only when the question changes, so a button is never
-// redrawn under someone's finger.
-let builtFor = null;
-function buildLockInOptions(view) {
-  if (builtFor === view.questionNumber) return;
-  builtFor = view.questionNumber;
-  $("#lockin-text").value = "";
-  const q = view.question;
-  const options =
-    q?.type === "mc" ? q.choices.map((c, i) => [`${letter(i)}. ${c}`, i])
-    : q?.type === "tf" ? [["True", true], ["False", false]]
-    : [];
-  $("#lockin-options").replaceChildren(...options.map(([text, value]) => {
-    const button = document.createElement("button");
-    button.textContent = text;
-    button.addEventListener("click", () => sendLockIn(value));
-    return button;
-  }));
-}
-
-function lockInText(question, answer) {
-  if (question.type === "mc") return `${letter(answer)}. ${question.choices[answer]}`;
-  if (question.type === "tf") return answer ? "True" : "False";
-  return `"${answer}"`;
-}
-
-function renderLockIn(view) {
-  const mine = view.myLockIn;
-  const showPanel = view.canLockIn || mine;
-  $("#lockin").hidden = !showPanel;
-  if (!showPanel) return;
-  buildLockInOptions(view);
-  $("#lockin-points").textContent = view.lockInPoints;
-  $("#lockin-options").hidden = !view.canLockIn;
-  $("#lockin-free").hidden = !view.canLockIn || view.question.type !== "free";
-
-  let text = "";
-  if (mine) {
-    text = `Locked in: ${lockInText(view.question, mine.answer)}`;
-    if (view.phase === "revealed") {
-      if (mine.awarded) text += `. Right! +${view.lockInPoints}`;
-      else if (mine.correct === false) text += ". Not this time.";
-      else if (mine.correct == null) text += ". Waiting for the host to mark it.";
-    }
+function drawBuzzer(view) {
+  const [label, sub] = buzzerLabel(view);
+  const buzzButton = $("#buzz");
+  buzzButton.className = view.buzzer;
+  buzzButton.disabled = !(view.buzzer === "ready" && view.canAnswer && hasSelection() && timeLeft() > 0);
+  buzzButton.replaceChildren(label);
+  if (sub) {
+    const small = document.createElement("small");
+    small.textContent = sub;
+    buzzButton.append(small);
   }
-  $("#lockin-result").textContent = text;
+}
+
+function draw(view) {
+  if (selection.questionNumber !== view.questionNumber) selection = { questionNumber: view.questionNumber, value: null };
+  drawPad(view);
+  drawBuzzer(view);
 }
 
 // ---- Scores, stats, history ----
@@ -208,7 +249,7 @@ function renderHistory(history) {
     number.textContent = `Q${h.questionNumber}`;
     left.append(number, TYPE_LABELS[h.type]);
     const right = document.createElement("span");
-    right.className = `r-${h.result}`;
+    right.className = `r-${h.result.replace(/ /g, "-")}`;
     right.textContent = h.points ? `${h.result} +${h.points}` : h.result;
     li.append(left, right);
     return li;
@@ -218,23 +259,19 @@ function renderHistory(history) {
 // ---- Draw everything from the team view ----
 
 socket.on("state", (view) => {
+  lastView = view;
   $("#phase").textContent = PHASE_LABELS[view.phase];
   $("#phase").className = `phase ${view.phase}`;
-  startCountdown($("#countdown"), view.buzzer === "floor" ? view.answerRemainingMs : null);
-  renderQuestion($("#question"), view.question);
+  startCountdown($("#countdown"), view.answerRemainingMs);
+  renderQuestion($("#question"), view.question, { choices: false });
 
-  const [label, sub] = buzzerLabel(view);
-  const buzzButton = $("#buzz");
-  buzzButton.className = view.buzzer;
-  buzzButton.disabled = view.buzzer !== "ready";
-  buzzButton.replaceChildren(label);
-  if (sub) {
-    const small = document.createElement("small");
-    small.textContent = sub;
-    buzzButton.append(small);
-  }
+  // When the clock runs out here, redraw so BUZZ greys out without waiting for the server.
+  deadline = view.answerRemainingMs == null ? null : performance.now() + view.answerRemainingMs;
+  clearTimeout(redrawTimer);
+  if (deadline !== null) redrawTimer = setTimeout(() => lastView && draw(lastView), view.answerRemainingMs + 20);
+  if (view.phase !== "open") $("#buzz-error").textContent = "";
 
-  renderLockIn(view);
+  draw(view);
   renderScores(view);
   renderStats(view.stats);
   renderHistory(view.history);

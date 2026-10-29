@@ -6,13 +6,13 @@ import crypto from "node:crypto";
 import { createServer } from "node:http";
 import { Server } from "socket.io";
 import {
-  createGame, registerTeam, rejoinTeam, showQuestion, openBuzzers, buzz, judge, reveal,
-  lockIn, markLockIn, adjustScore, kickTeam, toggleRegistration, replaceQuestions,
+  createGame, registerTeam, rejoinTeam, showQuestion, openBuzzers, buzz, closeAnswers, nextAnswer, judge, reveal,
+  markAnswer, adjustScore, kickTeam, toggleRegistration, replaceQuestions, setMusic, upgradeState, answerDeadline,
 } from "./game.js";
 import { loadQuestions, saveQuestions, saveState, loadState } from "./store.js";
 import { joinCrowd, rejoinCrowd, predict, pick, meView, createMeter, cheer, decayCheer } from "./crowd.js";
 import {
-  CHEER_TICK_MS, CHEER_MIN_GAP_MS, PORT, ADMIN_KEY, SAVE_PATH, QUESTIONS_PATH, PUBLIC_URL, UNDO_LIMIT,
+  CHEER_TICK_MS, CHEER_MIN_GAP_MS, PORT, ADMIN_KEY, SAVE_PATH, QUESTIONS_PATH, PUBLIC_URL, UNDO_LIMIT, LATE_GRACE_MS,
 } from "./config.js";
 import { publicView, teamView, adminView } from "./views.js";
 
@@ -53,6 +53,7 @@ function loadQuestionFile() {
 
 let state = loadState(savePath);
 if (state) {
+  upgradeState(state); // a save from an older version
   console.log(`Restored the saved game from ${path.relative(import.meta.dirname, savePath)}: ` +
     `${Object.keys(state.teams).length} teams, question ${state.questionIndex + 1} of ${state.questions.length}, phase ${state.phase}`);
 } else {
@@ -95,6 +96,22 @@ function broadcast() {
   } catch (error) {
     console.error(`WARNING: could not save the game: ${error.message}`);
   }
+  scheduleClose();
+}
+
+// When the answer clock runs out, stop taking answers by itself, so the host never
+// has to watch the timer. Rescheduled after every change (and after a restart).
+let closeTimer = null;
+function scheduleClose() {
+  clearTimeout(closeTimer);
+  closeTimer = null;
+  if (state.phase !== "open") return;
+  const wait = answerDeadline(state) + LATE_GRACE_MS - Date.now();
+  closeTimer = setTimeout(() => {
+    if (state.phase !== "open") return;
+    closeAnswers(state);
+    broadcast();
+  }, Math.max(0, wait) + 50);
 }
 
 // Predictions and picks can arrive from a hundred phones at once. Rather than one full
@@ -152,9 +169,11 @@ function isAdminKey(key) {
 const adminActions = {
   show: (action) => showQuestion(state, action.index),
   open: (_action, now) => openBuzzers(state, now),
-  judge: (action, now) => judge(state, action.correct, now),
+  close: () => closeAnswers(state),
+  next: () => nextAnswer(state),
+  judge: (action) => judge(state, action.correct),
   reveal: () => reveal(state),
-  markLockIn: (action) => markLockIn(state, action.teamId, action.correct),
+  markAnswer: (action) => markAnswer(state, action.teamId, action.correct),
   adjust: (action) => adjustScore(state, action.teamId, action.delta),
   kick: (action) => {
     const result = kickTeam(state, action.teamId);
@@ -184,8 +203,19 @@ const reply = (callback, result) => {
 io.on("connection", (socket) => {
   socket.on("display:join", () => {
     socket.join("display");
+    socket.data.isDisplay = true;
     socket.emit("state", displayView(Date.now()));
     socket.emit("cheer", { student: Math.round(meter.student), prof: Math.round(meter.prof) });
+  });
+
+  // The projector says when YouTube refuses a video (embedding turned off, removed),
+  // so the host sees it on the admin page instead of wondering why it is quiet.
+  socket.on("music:status", (details) => {
+    if (!socket.data.isDisplay || typeof details?.message !== "string") return;
+    const now = Date.now();
+    if (now - (socket.data.lastMusicStatusAt ?? 0) < 2000) return; // anyone can open the display page
+    socket.data.lastMusicStatusAt = now;
+    io.to("admin").emit("music:status", { message: details.message.slice(0, 160) });
   });
 
   // ---- Admin ----
@@ -205,6 +235,14 @@ io.on("connection", (socket) => {
     // Export: a backup copy of the whole game, downloaded by the admin page. Changes nothing.
     if (action.type === "export") {
       return reply(callback, { ok: true, data: state });
+    }
+
+    // Music is not part of the game, so Undo never touches it.
+    if (action.type === "music") {
+      const result = setMusic(state, action);
+      reply(callback, result.ok ? { ok: true } : { ok: false, error: result.error });
+      if (result.ok) broadcast();
+      return;
     }
 
     if (action.type === "undo") {
@@ -243,16 +281,11 @@ io.on("connection", (socket) => {
     reply(callback, teamReply(result));
   });
 
-  socket.on("team:lockin", (details, callback) => {
+  // BUZZ carries the team's answer, which is sealed at that moment.
+  socket.on("team:buzz", (details, callback) => {
     if (!socket.data.teamId) return reply(callback, { ok: false, error: "Join a team first" });
-    const result = lockIn(state, socket.data.teamId, details?.answer);
+    const result = buzz(state, socket.data.teamId, details?.answer, Date.now());
     reply(callback, result.ok ? { ok: true } : { ok: false, error: result.error });
-    if (result.ok) broadcast();
-  });
-
-  socket.on("team:buzz", () => {
-    if (!socket.data.teamId) return;
-    const result = buzz(state, socket.data.teamId, Date.now());
     if (result.ok) broadcast();
   });
 
@@ -279,7 +312,7 @@ io.on("connection", (socket) => {
 
   socket.on("crowd:pick", (details, callback) => {
     const question = state.questions[state.questionIndex];
-    const result = pick(state.crowd, socket.data.spectatorId, details?.choice, state.phase, question, state.current.lockInsOpen);
+    const result = pick(state.crowd, socket.data.spectatorId, details?.choice, state.phase, question);
     reply(callback, result.ok ? { ok: true } : { ok: false, error: result.error });
     if (result.ok) broadcastSoon();
   });

@@ -1,13 +1,13 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import {
-  createGame, registerTeam, rejoinTeam, showQuestion, openBuzzers, buzz, judge, reveal, upNext,
-  lockIn, markLockIn, adjustScore, kickTeam, toggleRegistration, replaceQuestions,
+  createGame, registerTeam, rejoinTeam, showQuestion, openBuzzers, buzz, closeAnswers, nextAnswer, judge, reveal,
+  upNext, markAnswer, adjustScore, kickTeam, toggleRegistration, replaceQuestions, setMusic, upgradeState,
 } from "../game.js";
 import { joinCrowd, predict, pick } from "../crowd.js";
 
 const QUESTIONS = [
-  { id: "q1", type: "free", prompt: "Free?", answer: "yes" },
+  { id: "q1", type: "free", prompt: "Free?", answer: "yes", accept: ["yep"] },
   { id: "q2", type: "mc", prompt: "MC?", choices: ["A", "B"], answer: 1 },
   { id: "q3", type: "tf", prompt: "TF?", answer: true },
 ];
@@ -77,142 +77,211 @@ test("rejoin finds the team by code, in any case, and refuses a wrong code", () 
   assert.equal(rejoinTeam(state, undefined).ok, false);
 });
 
-test("buzzing only works while buzzers are open", () => {
+test("buzzing only works while answers are open", () => {
   const { state, a } = gameWithTeams();
-  assert.equal(buzz(state, a.id, 500).ok, false); // lobby
+  assert.equal(buzz(state, a.id, "yes", 500).ok, false); // lobby
   showQuestion(state);
-  assert.equal(buzz(state, a.id, 900).ok, false); // preview
+  assert.equal(buzz(state, a.id, "yes", 900).ok, false); // preview
   assert.deepEqual(state.current.buzzes, []);
 });
 
-test("the first buzz gets the floor; later buzzes are still recorded; repeats are refused", () => {
+test("a buzz seals the team's answer and its time; repeats, bad answers and strangers are refused", () => {
   const { state, a, b } = gameWithTeams();
-  showQuestion(state);
+  showQuestion(state, 1); // mc, 2 choices
   openBuzzers(state, 1000);
-  assert.equal(buzz(state, a.id, 1250).ok, true);
-  assert.equal(state.phase, "answering");
-  assert.equal(state.current.activeTeamId, a.id);
-  assert.equal(buzz(state, b.id, 1400).ok, true);
-  assert.equal(state.current.activeTeamId, a.id);
-  assert.equal(buzz(state, a.id, 1500).ok, false);
-  assert.equal(buzz(state, "t99", 1600).ok, false);
-  assert.deepEqual(state.current.buzzes.map((x) => x.teamId), [a.id, b.id]);
+  assert.equal(buzz(state, a.id, 5, 1100).ok, false);
+  assert.equal(buzz(state, a.id, "1", 1100).ok, false);
+  assert.equal(buzz(state, a.id, 1, 1250).ok, true);
+  assert.equal(buzz(state, a.id, 0, 1300).ok, false);
+  assert.equal(buzz(state, "t99", 1, 1300).ok, false);
+  assert.equal(state.phase, "open"); // nothing is read out while answers are open
+  assert.deepEqual(state.current.answers[a.id], { answer: 1, correct: true, awarded: false });
   assert.deepEqual(a.stats.reactionTimes, [250]);
   assert.equal(a.stats.buzzesWon, 1);
+  assert.equal(a.score, 0);
+  buzz(state, b.id, 0, 1400);
+  assert.equal(b.stats.buzzesWon, 0);
+});
+
+test("a buzz after the clock (plus a little grace for Wi-Fi) is refused", () => {
+  const { state, a, b } = gameWithTeams();
+  showQuestion(state, 2); // tf: 15 seconds
+  openBuzzers(state, 0);
+  assert.equal(buzz(state, a.id, true, 15_500).ok, true); // inside the grace
+  const late = buzz(state, b.id, true, 16_000);
+  assert.equal(late.ok, false);
+  assert.match(late.error, /Time is up/);
+});
+
+test("when every team has locked in, answers close by themselves", () => {
+  const { state, a, b } = gameWithTeams();
+  showQuestion(state, 2);
+  openBuzzers(state, 1000);
+  buzz(state, a.id, true, 1100);
+  assert.equal(state.phase, "open");
+  buzz(state, b.id, false, 1200);
+  assert.equal(state.phase, "judging");
+});
+
+test("closing with no answers goes straight to the reveal with no winner", () => {
+  const { state } = gameWithTeams();
+  showQuestion(state);
+  openBuzzers(state, 1000);
+  assert.equal(closeAnswers(state).ok, true);
+  assert.equal(state.phase, "revealed");
+  assert.equal(state.current.winnerTeamId, null);
+});
+
+test("answers are read fastest first; a right mc answer wins and judges itself", () => {
+  const { state, a, b } = gameWithTeams();
+  showQuestion(state, 1); // mc, 200 points, answer 1
+  openBuzzers(state, 1000);
+  buzz(state, b.id, 1, 1100); // B is faster
+  assert.equal(nextAnswer(state).ok, true); // closes answers and reads B
+  assert.equal(state.phase, "revealed");
+  assert.equal(state.current.winnerTeamId, b.id);
+  assert.equal(b.score, 200);
+  assert.equal(b.stats.correct, 1);
+  assert.equal(b.stats.steals, 0);
+  assert.equal(a.score, 0); // never answered
 });
 
 test("a correct answer scores 300, 200 and 100 for free, mc and tf", () => {
   const { state, a } = gameWithTeams();
   let now = 1000;
-  for (const expected of [300, 500, 600]) {
+  for (const [answer, expected] of [["Yes", 300], [1, 500], [true, 600]]) {
     assert.equal(showQuestion(state).ok, true);
     openBuzzers(state, now);
-    buzz(state, a.id, now + 100);
-    assert.equal(judge(state, true, now + 200).ok, true);
+    buzz(state, a.id, answer, now + 100);
+    nextAnswer(state);
     assert.equal(state.phase, "revealed");
     assert.equal(a.score, expected);
-    now += 1000;
+    now += 100_000;
   }
-  assert.equal(state.current.winnerTeamId, a.id);
   assert.equal(a.stats.correct, 3);
 });
 
-test("a wrong answer passes the floor to the other side and restarts the clock", () => {
-  const { state, a, b } = gameWithTeams();
-  showQuestion(state);
-  openBuzzers(state, 1000);
-  buzz(state, a.id, 1100);
-  judge(state, false, 5000);
-  assert.equal(a.score, 0);
-  assert.equal(a.stats.wrong, 1);
-  assert.equal(state.phase, "answering");
-  assert.equal(state.current.activeTeamId, b.id);
-  assert.equal(state.current.answeringSince, 5000);
-});
-
-test("wrong, wrong, right: the third team scores and it counts as a steal", () => {
+test("wrong, wrong, right: the third team wins, it counts as a steal, and nobody heard anything first", () => {
   const state = createGame(structuredClone(QUESTIONS));
   const s1 = registerTeam(state, { name: "S1", side: "student" }).team;
   const s2 = registerTeam(state, { name: "S2", side: "student" }).team;
   const p1 = registerTeam(state, { name: "P1", side: "prof" }).team;
-  showQuestion(state);
+  showQuestion(state, 2); // tf, answer true
   openBuzzers(state, 1000);
-  buzz(state, s1.id, 1100);
-  judge(state, false, 2000); // S1 wrong -> P1
-  assert.equal(state.current.activeTeamId, p1.id);
-  judge(state, false, 3000); // P1 wrong -> S2 (profs have nobody left)
-  assert.equal(state.current.activeTeamId, s2.id);
-  judge(state, true, 4000);
-  assert.equal(s2.score, 300);
+  buzz(state, s1.id, false, 1100);
+  buzz(state, s2.id, true, 1200);
+  buzz(state, p1.id, false, 1300); // all in: judging
+  nextAnswer(state); // S1 wrong
+  assert.equal(state.phase, "judging");
+  assert.deepEqual(upNext(state), [p1.id, s2.id]); // alternate sides
+  nextAnswer(state); // P1 wrong
+  nextAnswer(state); // S2 right
+  assert.equal(state.current.winnerTeamId, s2.id);
+  assert.equal(s2.score, 100);
   assert.equal(s2.stats.steals, 1);
   assert.equal(s1.stats.wrong, 1);
   assert.equal(p1.stats.wrong, 1);
-  assert.equal(state.phase, "revealed");
-  assert.equal(state.current.winnerTeamId, s2.id);
+  assert.deepEqual(state.current.attempted, [s1.id, p1.id, s2.id]);
 });
 
-test("with 3 and 3 teams, five wrongs visit all six teams alternating sides; the sixth reveals", () => {
+test("with 3 and 3 teams the reading order is fastest first, then alternating sides", () => {
   const state = createGame(structuredClone(QUESTIONS));
   const ids = ["S1", "S2", "S3", "P1", "P2", "P3"].map(
     (name) => registerTeam(state, { name, side: name[0] === "S" ? "student" : "prof" }).team.id,
   );
-  showQuestion(state);
+  showQuestion(state, 2);
   openBuzzers(state, 1000);
-  buzz(state, ids[1], 1100); // S2 first
-  buzz(state, ids[5], 1200); // P3 second
-  const visited = [state.current.activeTeamId];
-  for (let i = 0; i < 5; i++) {
-    judge(state, false, 2000 + i);
-    visited.push(state.current.activeTeamId);
-  }
-  const names = visited.map((id) => state.teams[id].name);
-  assert.deepEqual(names, ["S2", "P3", "S1", "P1", "S3", "P2"]);
-  judge(state, false, 3000);
+  // P3 fastest, then S2, S1, P1, S3, P2. Everyone is wrong.
+  [5, 1, 0, 3, 2, 4].forEach((i, n) => buzz(state, ids[i], false, 1100 + n));
+  const names = upNext(state).map((id) => state.teams[id].name);
+  assert.deepEqual(names, ["P3", "S2", "P1", "S1", "P2", "S3"]);
+  for (let i = 0; i < 6; i++) nextAnswer(state);
   assert.equal(state.phase, "revealed");
   assert.equal(state.current.winnerTeamId, null);
-  assert.equal(state.current.attempted.length, 6);
 });
 
-test("upNext lists who is waiting, and updates when a late team buzzes", () => {
-  const state = createGame(structuredClone(QUESTIONS));
-  const s1 = registerTeam(state, { name: "S1", side: "student" }).team;
-  const p1 = registerTeam(state, { name: "P1", side: "prof" }).team;
-  const p2 = registerTeam(state, { name: "P2", side: "prof" }).team;
-  showQuestion(state);
+test("a free answer that is not an exact match waits for the host", () => {
+  const { state, a, b } = gameWithTeams();
+  showQuestion(state, 0); // free, answer "yes", also accepts "yep"
   openBuzzers(state, 1000);
-  buzz(state, s1.id, 1100);
-  assert.deepEqual(upNext(state), [p1.id, p2.id]);
-  buzz(state, p2.id, 1500); // P2 buzzes late and jumps ahead of P1
-  assert.deepEqual(upNext(state), [p2.id, p1.id]);
+  buzz(state, a.id, "  yeah ", 1100);
+  buzz(state, b.id, "YEP", 1200);
+  nextAnswer(state); // reads A: "yeah" needs the host
+  assert.equal(state.current.activeTeamId, a.id);
+  assert.equal(nextAnswer(state).ok, false); // must judge first
+  assert.equal(judge(state, "yes").ok, false);
+  assert.equal(judge(state, false).ok, true);
+  nextAnswer(state); // B: "YEP" is an accepted spelling, judged automatically
+  assert.equal(state.current.winnerTeamId, b.id);
+  assert.equal(b.score, 300);
+});
+
+test("judge is refused when no answer is waiting", () => {
+  const { state, a } = gameWithTeams();
+  assert.equal(judge(state, true).ok, false);
+  showQuestion(state, 1);
+  openBuzzers(state, 1000);
+  buzz(state, a.id, 1, 1100);
+  assert.equal(judge(state, true).ok, false); // still open
+});
+
+test("every other correct answer gets 25%, even ones never read out; wrong pays nothing", () => {
+  const state = createGame(structuredClone(QUESTIONS));
+  const a = registerTeam(state, { name: "A", side: "student" }).team;
+  const b = registerTeam(state, { name: "B", side: "prof" }).team;
+  const c = registerTeam(state, { name: "C", side: "student" }).team;
+  showQuestion(state, 1); // mc, 200, answer 1
+  openBuzzers(state, 1000);
+  buzz(state, a.id, 1, 1100);
+  buzz(state, b.id, 1, 1200);
+  buzz(state, c.id, 0, 1300);
+  nextAnswer(state); // A right, wins
+  assert.equal(a.score, 200);
+  assert.equal(b.score, 50);
+  assert.equal(b.stats.lockInHits, 1);
+  assert.equal(c.score, 0);
+  assert.deepEqual(state.history.at(-1).lockInsAwarded, [b.id]);
+});
+
+test("free answers can be marked after the reveal; marking is idempotent and reversible", () => {
+  const { state, a, b } = gameWithTeams();
+  showQuestion(state, 0);
+  openBuzzers(state, 1000);
+  buzz(state, a.id, "yes", 1100);
+  buzz(state, b.id, "yess", 1200);
+  assert.equal(markAnswer(state, b.id, true).ok, false); // not revealed yet
+  nextAnswer(state); // A exact, wins
+  assert.equal(markAnswer(state, a.id, false).ok, false); // the winner is not re-marked here
+  markAnswer(state, b.id, true);
+  markAnswer(state, b.id, true);
+  assert.equal(b.score, 75);
+  markAnswer(state, b.id, false);
+  assert.equal(b.score, 0);
+  assert.equal(b.stats.lockInHits, 0);
+});
+
+test("reveal ends the question at any point, settling what is known", () => {
+  const { state, a, b } = gameWithTeams();
+  showQuestion(state, 2);
+  openBuzzers(state, 1000);
+  buzz(state, a.id, true, 1100);
+  assert.equal(reveal(state).ok, true);
+  assert.equal(state.phase, "revealed");
+  assert.equal(state.current.winnerTeamId, null);
+  assert.equal(a.score, 25); // right but never read out
+  assert.equal(b.score, 0);
 });
 
 test("actions in the wrong phase are refused", () => {
   const { state } = gameWithTeams();
   assert.equal(openBuzzers(state, 1000).ok, false); // nothing shown yet
-  assert.equal(judge(state, true, 1000).ok, false);
+  assert.equal(nextAnswer(state).ok, false);
   assert.equal(reveal(state).ok, false);
   showQuestion(state);
   assert.equal(showQuestion(state).ok, false); // mid-question
-  assert.equal(judge(state, true, 1000).ok, false); // nobody has the floor
+  assert.equal(closeAnswers(state).ok, false);
   openBuzzers(state, 1000);
   assert.equal(openBuzzers(state, 1001).ok, false); // double click
-});
-
-test("judge needs a real true or false", () => {
-  const { state, a } = gameWithTeams();
-  showQuestion(state);
-  openBuzzers(state, 1000);
-  buzz(state, a.id, 1100);
-  assert.equal(judge(state, "yes", 1200).ok, false);
-  assert.equal(state.phase, "answering");
-});
-
-test("reveal with no buzzes ends the question with no winner", () => {
-  const { state } = gameWithTeams();
-  showQuestion(state);
-  openBuzzers(state, 1000);
-  assert.equal(reveal(state).ok, true);
-  assert.equal(state.phase, "revealed");
 });
 
 test("show can jump to a question, but not past the end", () => {
@@ -226,80 +295,6 @@ test("show can jump to a question, but not past the end", () => {
   assert.equal(showQuestion(state, 99).ok, false);
 });
 
-// ---- Lock-ins ---------------------------------------------------------------
-
-function threeTeamsOnQuestion(index) {
-  const state = createGame(structuredClone(QUESTIONS));
-  const a = registerTeam(state, { name: "A", side: "student" }).team;
-  const b = registerTeam(state, { name: "B", side: "prof" }).team;
-  const c = registerTeam(state, { name: "C", side: "student" }).team;
-  showQuestion(state, index);
-  openBuzzers(state, 1000);
-  return { state, a, b, c };
-}
-
-test("lock-ins: right pays 25%, wrong pays nothing, the winner gets no bonus", () => {
-  const { state, a, b, c } = threeTeamsOnQuestion(1); // mc, 200 points, answer 1
-  assert.equal(lockIn(state, b.id, 1).ok, true);
-  assert.equal(lockIn(state, c.id, 0).ok, true);
-  assert.equal(lockIn(state, a.id, 1).ok, true);
-  buzz(state, a.id, 1100);
-  judge(state, true, 1200);
-  assert.equal(a.score, 200);
-  assert.equal(b.score, 50);
-  assert.equal(b.stats.lockInHits, 1);
-  assert.equal(c.score, 0);
-});
-
-test("lock-ins close at the first judgement, and the team with the floor cannot lock in", () => {
-  const { state, a, b, c } = threeTeamsOnQuestion(2); // tf
-  buzz(state, a.id, 1100);
-  assert.equal(lockIn(state, a.id, true).ok, false);
-  judge(state, false, 1200); // floor passes to B
-  const late = lockIn(state, c.id, true);
-  assert.equal(late.ok, false);
-  assert.match(late.error, /closed/);
-  assert.equal(lockIn(state, b.id, true).ok, false);
-});
-
-test("lock-ins are once only and must fit the question type", () => {
-  const { state, b, c } = threeTeamsOnQuestion(1); // mc with 2 choices
-  assert.equal(lockIn(state, b.id, 5).ok, false);
-  assert.equal(lockIn(state, b.id, "1").ok, false);
-  assert.equal(lockIn(state, b.id, 1).ok, true);
-  assert.equal(lockIn(state, b.id, 0).ok, false);
-  assert.equal(lockIn(state, c.id, true).ok, false);
-  assert.equal(lockIn(state, "t99", 1).ok, false);
-});
-
-test("free response lock-ins wait for the host; marking is idempotent and reversible", () => {
-  const { state, a, b } = threeTeamsOnQuestion(0); // free, 300 points, answer "yes"
-  lockIn(state, b.id, "  yeah ");
-  buzz(state, a.id, 1100);
-  assert.equal(markLockIn(state, b.id, true).ok, false); // not revealed yet
-  judge(state, false, 1200);
-  judge(state, false, 1300);
-  judge(state, false, 1400); // everyone tried, revealed
-  assert.equal(state.phase, "revealed");
-  assert.equal(b.score, 0);
-  assert.equal(state.current.lockIns[b.id].answer, "yeah");
-  markLockIn(state, b.id, true);
-  markLockIn(state, b.id, true);
-  assert.equal(b.score, 75);
-  assert.equal(b.stats.lockInHits, 1);
-  markLockIn(state, b.id, false);
-  assert.equal(b.score, 0);
-  assert.equal(b.stats.lockInHits, 0);
-  assert.equal(markLockIn(state, a.id, true).ok, false); // A never locked in
-});
-
-test("an exact free response lock-in is paid automatically at the reveal", () => {
-  const { state, b } = threeTeamsOnQuestion(0);
-  lockIn(state, b.id, "YES");
-  reveal(state);
-  assert.equal(b.score, 75);
-});
-
 test("ending a question settles the crowd, and showing the next one clears it", () => {
   const { state, a, b } = gameWithTeams();
   const crowd = state.crowd;
@@ -309,15 +304,45 @@ test("ending a question settles the crowd, and showing the next one clears it", 
   predict(crowd, ana, "prof", state.phase);
   predict(crowd, ben, "student", state.phase);
   openBuzzers(state, 1000);
-  pick(crowd, ana, 1, state.phase, state.questions[1], state.current.lockInsOpen);
-  buzz(state, a.id, 1100);
-  judge(state, false, 1200); // student wrong -> prof
-  judge(state, true, 1300);  // prof right
+  pick(crowd, ana, 1, state.phase, state.questions[1]);
+  buzz(state, a.id, 0, 1100); // student wrong
+  buzz(state, b.id, 1, 1200); // prof right
+  nextAnswer(state);
+  nextAnswer(state);
   assert.equal(b.score, 200);
   assert.equal(crowd.spectators[ana].score, 20); // right prediction and right pick
   assert.equal(crowd.spectators[ben].score, 0);
   showQuestion(state);
   assert.deepEqual(crowd.predictions, {});
+});
+
+// ---- Music ----------------------------------------------------------------------
+
+test("setMusic takes a YouTube link, play and volume, and refuses anything else whole", () => {
+  const state = createGame();
+  assert.equal(setMusic(state, { background: "https://youtu.be/dQw4w9WgXcQ?t=30", playing: true, volume: 40 }).ok, true);
+  assert.deepEqual(state.music, { background: "https://youtu.be/dQw4w9WgXcQ?t=30", playing: true, volume: 40 });
+  assert.equal(setMusic(state, { background: "https://example.com/song.mp3" }).ok, false);
+  assert.equal(setMusic(state, { playing: false, volume: 101 }).ok, false);
+  assert.equal(state.music.playing, true); // a refused change changes nothing
+  setMusic(state, { background: "" });
+  assert.equal(state.music.background, null);
+});
+
+// ---- Older saves ------------------------------------------------------------------
+
+test("upgradeState brings a save from the lock-in version up to date", () => {
+  const old = createGame(structuredClone(QUESTIONS));
+  delete old.music;
+  old.phase = "answering";
+  old.questionIndex = 1;
+  old.current = { buzzes: [{ teamId: "t1", at: 5 }], attempted: [], activeTeamId: "t1", lockIns: {}, lockInsOpen: true, answeringSince: 5 };
+  old.history = [{ questionNumber: 1, attempted: [], lockInsAwarded: [] }];
+  upgradeState(old);
+  assert.equal(old.phase, "preview");
+  assert.deepEqual(old.current.answers, {});
+  assert.deepEqual(old.history[0].answered, []);
+  assert.equal(old.music.playing, false);
 });
 
 // ---- Host fixes ---------------------------------------------------------------

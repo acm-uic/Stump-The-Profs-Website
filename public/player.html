@@ -37,20 +37,15 @@
         </header>
 
         <div class="question clay" id="question"></div>
-        <button type="button" id="buzz" class="locked" disabled>WAIT</button>
-        <p class="hint" id="buzz-hint">Tip: you can also press the space bar.</p>
 
-        <section class="lockin" id="lockin" hidden>
-          <h3>Lock in an answer</h3>
-          <p>Not your turn? Lock in secretly for <strong id="lockin-points"></strong> points if you’re right. One try. Closes when the first answer is judged.</p>
-          <div id="lockin-options"></div>
-          <form id="lockin-free" hidden>
-            <input id="lockin-text" type="text" maxlength="80" placeholder="Your answer" aria-label="Your answer" autocomplete="off">
-            <button type="submit" class="btn">Lock in</button>
-          </form>
-          <p id="lockin-result"></p>
-          <p class="error" id="lockin-error"></p>
+        <section class="answer-pad" id="answer-pad" hidden aria-label="Your answer">
+          <div class="pad-choices" id="pad-choices"></div>
+          <input id="pad-text" type="text" maxlength="80" placeholder="Type your answer, then buzz" aria-label="Your answer" autocomplete="off" hidden>
         </section>
+
+        <button type="button" id="buzz" class="locked" disabled>WAIT</button>
+        <p class="hint" id="buzz-hint">Pick your answer, then buzz to lock it in. Nobody hears any answer until time is up. Space bar buzzes too.</p>
+        <p class="error" id="buzz-error" role="alert"></p>
       </div>
 
       <aside class="ledger">
@@ -66,14 +61,14 @@
         <section class="stats-block">
           <h3>Your stats</h3>
           <div class="stats">
-            <div><strong id="st-buzzes">0</strong><span>buzzes won</span></div>
+            <div><strong id="st-buzzes">0</strong><span>first to buzz</span></div>
             <div><strong id="st-accuracy">n/a</strong><span>accuracy</span></div>
             <div><strong id="st-avg">n/a</strong><span>avg reaction</span></div>
             <div><strong id="st-fastest">n/a</strong><span>fastest</span></div>
             <div><strong id="st-correct">0</strong><span>correct</span></div>
             <div><strong id="st-wrong">0</strong><span>wrong</span></div>
             <div><strong id="st-steals">0</strong><span>steals</span></div>
-            <div><strong id="st-lockins">0</strong><span>lock-in hits</span></div>
+            <div><strong id="st-lockins">0</strong><span>also right</span></div>
           </div>
         </section>
 

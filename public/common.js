@@ -7,7 +7,7 @@ export const PHASE_LABELS = {
   lobby: "Waiting to start",
   preview: "Get ready…",
   open: "BUZZ!",
-  answering: "Answering",
+  judging: "Reading answers",
   revealed: "Answer",
 };
 
@@ -27,12 +27,22 @@ export function formatMs(ms) {
   return ms < 1000 ? `${ms} ms` : `${(ms / 1000).toFixed(1)} s`;
 }
 
-// The correct answer as text, e.g. "B. Merge sort" or "False".
+// Any answer to a question as text, e.g. "B. Merge sort", "False" or a typed answer.
+export function choiceText(question, answer) {
+  if (question?.type === "mc") return `${letter(answer)}. ${question.choices[answer]}`;
+  if (question?.type === "tf") return answer ? "True" : "False";
+  return String(answer);
+}
+
+// The correct answer as text, or "" when this page has not been sent it.
 export function answerText(question) {
   if (!question || !("answer" in question)) return "";
-  if (question.type === "mc") return `${letter(question.answer)}. ${question.choices[question.answer]}`;
-  if (question.type === "tf") return question.answer ? "True" : "False";
-  return question.answer;
+  return choiceText(question, question.answer);
+}
+
+// "3 of 6 teams locked in"
+export function lockedInText(view) {
+  return `${view.answerCount} of ${view.teams.length} team${view.teams.length === 1 ? "" : "s"} locked in`;
 }
 
 // Connects with WebSocket first. Socket.IO's default starts on HTTP polling and
@@ -62,10 +72,27 @@ export function startCountdown(el, remainingMs, totalMs, barEl) {
   timers.set(el, setInterval(tick, 100));
 }
 
-// "Up next: Dr. Null (Professors), Byte Me (Students)", or "" when nobody is waiting.
+// "Still to read: Dr. Null (Professors), Byte Me (Students)", or "" when nobody is waiting.
 export function upNextText(view) {
   if (!view.upNext.length) return "";
-  return "Up next: " + view.upNext.map((t) => `${t.name} (${SIDE_NAMES[t.side]})`).join(", ");
+  return "Still to read: " + view.upNext.map((t) => `${t.name} (${SIDE_NAMES[t.side]})`).join(", ");
+}
+
+// Fills a list with the answers read out so far, each with its ruling.
+export function renderReadOut(listEl, view) {
+  listEl.replaceChildren(...view.readOut.map((entry) => {
+    const li = document.createElement("li");
+    li.className = entry.correct === true ? "right" : entry.correct === false ? "wrong" : "pending";
+    const name = document.createElement("strong");
+    name.textContent = entry.team.name;
+    const answer = document.createElement("span");
+    answer.textContent = choiceText(view.question, entry.answer);
+    const ruling = document.createElement("span");
+    ruling.className = "ruling";
+    ruling.textContent = entry.correct === true ? "Correct" : entry.correct === false ? "Wrong" : "Host is deciding";
+    li.append(name, answer, ruling);
+    return li;
+  }));
 }
 
 // Fills a list element with "name, score" rows for some teams.
@@ -89,9 +116,10 @@ export function renderTeamList(listEl, teams, emptyText = "No teams yet") {
   }
 }
 
-// Draws the question: category, points, prompt and (for mc/tf) the choices.
-// When the answer is included (after the reveal, or on the admin page), it is highlighted.
-export function renderQuestion(el, question) {
+// Draws the question: category, points, prompt and (for mc/tf) the choices, unless
+// the page draws its own. When the answer is included (after the reveal, or on the
+// admin page), it is highlighted.
+export function renderQuestion(el, question, { choices = true } = {}) {
   el.replaceChildren();
   if (!question) return;
   const meta = document.createElement("p");
@@ -106,10 +134,7 @@ export function renderQuestion(el, question) {
   prompt.textContent = question.prompt;
   el.append(meta, prompt);
 
-  const options =
-    question.type === "mc" ? question.choices.map((c, i) => [`${letter(i)}. ${c}`, i])
-    : question.type === "tf" ? [["True", true], ["False", false]]
-    : [];
+  const options = choices ? choiceOptions(question) : [];
   if (options.length) {
     const ul = document.createElement("ul");
     ul.className = "choices";
@@ -121,4 +146,11 @@ export function renderQuestion(el, question) {
     }
     el.append(ul);
   }
+}
+
+// The choices a team or spectator can pick, as [text, value] pairs. Empty for free response.
+export function choiceOptions(question) {
+  if (question?.type === "mc") return question.choices.map((c, i) => [`${letter(i)}. ${c}`, i]);
+  if (question?.type === "tf") return [["True", true], ["False", false]];
+  return [];
 }

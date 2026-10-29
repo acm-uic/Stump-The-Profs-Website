@@ -42,7 +42,7 @@ jobs:
           username: ${{ github.actor }}
           password: ${{ secrets.GITHUB_TOKEN }}
 
-      # Tags: the short commit hash (what the cluster pins to) and "latest".
+      # Tags: "latest" (what the cluster runs) and the short commit hash (to roll back to).
       - id: meta
         uses: docker/metadata-action@v6
         with:

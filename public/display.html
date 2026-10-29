@@ -23,8 +23,10 @@
       <div class="result-banner" id="result" hidden></div>
       <div class="floor" id="floor-box" hidden>
         <span class="floor-name" id="floor"></span><span id="countdown"></span>
-        <div class="bar"><div id="countdown-bar"></div></div>
+        <div class="bar" id="countdown-track"><div id="countdown-bar"></div></div>
+        <p class="floor-answer" id="floor-answer"></p>
       </div>
+      <ol class="read-out" id="read-out"></ol>
       <p id="up-next"></p>
       <p id="lockin-line"></p>
       <ul class="buzzes" id="buzzes"></ul>
@@ -83,6 +85,8 @@
     </section>
   </main>
   <p id="fullscreen-hint">Press F for full screen</p>
+  <p class="music-hint" id="music-hint" hidden>Click anywhere on this screen to turn the music on</p>
+  <div class="yt-holder" aria-hidden="true"><div id="yt-player"></div></div>
 
   <script src="/socket.io/socket.io.js"></script>
   <script type="module" src="/display.js"></script>

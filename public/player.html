@@ -27,6 +27,15 @@
       <p class="error" id="error" role="alert"></p>
     </form>
 
+    <form id="rejoin-form" class="rejoin-form" hidden>
+      <label class="field-label" for="rejoin-code">Already joined? Type your rejoin code</label>
+      <div class="rejoin-row">
+        <input id="rejoin-code" type="text" maxlength="6" placeholder="ABC234" autocomplete="off" autocapitalize="characters" spellcheck="false">
+        <button type="submit" class="btn">Rejoin</button>
+      </div>
+      <p class="error" id="rejoin-error" role="alert"></p>
+    </form>
+
     <section id="play" class="play" hidden>
       <div class="arena">
         <header class="status-row team">

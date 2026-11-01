@@ -194,6 +194,10 @@ kbd { font-family: var(--font-body); font-size: var(--text-xs); font-weight: 800
     inset -3px -3px 6px color-mix(in oklab, var(--fill) 50%, var(--color-highlight));
 }
 #register button[type="submit"] { width: 100%; min-height: 52px; font-size: var(--text-lg); }
+.rejoin-form { max-width: 30rem; margin: var(--space-xl) auto 0; display: grid; gap: var(--space-xs); padding-inline: var(--space-lg); }
+.rejoin-row { display: flex; gap: var(--space-xs); }
+.rejoin-row input { flex: 1; min-width: 0; text-transform: uppercase; font-variant-numeric: tabular-nums; }
+.rejoin-form .error:empty { display: none; }
 
 .play { display: grid; grid-template-columns: minmax(0, 1.55fr) minmax(0, 1fr); gap: var(--space-xl); align-items: start; padding-top: var(--space-xs); }
 .arena { display: grid; gap: var(--space-lg); min-width: 0; }

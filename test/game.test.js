@@ -26,13 +26,13 @@ test("a new game has no teams and starts in the lobby", () => {
   assert.equal(state.phase, "lobby");
 });
 
-test("registering gives back the team with its side and a 4-character code", () => {
+test("registering gives back the team with its side and a 6-character code", () => {
   const state = createGame();
   const result = registerTeam(state, { name: "  Byte Me ", side: "student" });
   assert.equal(result.ok, true);
   assert.equal(result.team.name, "Byte Me");
   assert.equal(result.team.side, "student");
-  assert.match(result.team.code, /^[A-Z2-9]{4}$/);
+  assert.match(result.team.code, /^[A-HJ-NP-Z2-9]{6}$/);
   assert.equal(state.teams[result.team.id], result.team);
 });
 

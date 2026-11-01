@@ -11,6 +11,7 @@ const CODE_KEY = "teamCode";
 
 function showRegister() {
   $("#register").hidden = false;
+  $("#rejoin-form").hidden = false;
   $("#play").hidden = true;
 }
 
@@ -20,6 +21,7 @@ function showPlay({ name, side, code }) {
   $("#team-side").dataset.side = side;
   $("#code").textContent = code;
   $("#register").hidden = true;
+  $("#rejoin-form").hidden = true;
   $("#play").hidden = false;
 }
 
@@ -60,6 +62,22 @@ $("#register").addEventListener("submit", (event) => {
       return;
     }
     $("#error").textContent = "";
+    localStorage.setItem(CODE_KEY, reply.code);
+    showPlay(reply);
+  });
+});
+
+// A team that joined on another laptop (or lost this browser's memory) gets back in
+// with the code shown on its screen, or read out by the host from the Teams list.
+$("#rejoin-form").addEventListener("submit", (event) => {
+  event.preventDefault();
+  socket.emit("team:rejoin", { code: $("#rejoin-code").value }, (reply) => {
+    if (!reply.ok) {
+      $("#rejoin-error").textContent = reply.error;
+      return;
+    }
+    $("#rejoin-error").textContent = "";
+    $("#rejoin-code").value = "";
     localStorage.setItem(CODE_KEY, reply.code);
     showPlay(reply);
   });

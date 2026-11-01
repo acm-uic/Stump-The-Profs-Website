@@ -276,6 +276,11 @@ io.on("connection", (socket) => {
   });
 
   socket.on("team:rejoin", (details, callback) => {
+    // One try a second per connection: with 6-character codes, a script guessing
+    // codes would need years, while a team that mistypes simply tries again.
+    const now = Date.now();
+    if (now - (socket.data.lastRejoinAt ?? 0) < 1000) return reply(callback, { ok: false, error: "Wait a second and try again" });
+    socket.data.lastRejoinAt = now;
     const result = rejoinTeam(state, details?.code);
     if (result.ok) joinTeamRoom(socket, result.team);
     reply(callback, teamReply(result));

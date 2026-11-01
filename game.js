@@ -18,6 +18,7 @@ import { parseYouTube } from "./music.js";
 const SIDES = ["student", "prof"];
 const CODE_ALPHABET = "ABCDEFGHJKLMNPQRSTUVWXYZ23456789"; // no O/0, I/1 look-alikes
 const MAX_NAME_LENGTH = 30;
+const CODE_LENGTH = 6; // 32^6 is about a billion codes, so guessing one is hopeless
 
 function freshCurrent() {
   return {
@@ -394,7 +395,7 @@ function makeCode(state) {
   let code;
   do {
     code = "";
-    for (let i = 0; i < 4; i++) {
+    for (let i = 0; i < CODE_LENGTH; i++) {
       code += CODE_ALPHABET[Math.floor(Math.random() * CODE_ALPHABET.length)];
     }
   } while (used.has(code));

@@ -1,0 +1,381 @@
+{
+  "schema_version": 1,
+  "diagram_type": "architecture",
+  "meta": {
+    "title": "How Stump the Profs runs and ships",
+    "output": "docs/diagrams/system-overview.html",
+    "locale": "en",
+    "quality_profile": "showcase",
+    "repository": {
+      "url": "https://github.com/acm-uic/Stump-The-Profs-Website.git",
+      "provider": "github",
+      "link_mode": "web",
+      "revision": "c10817b9caf7a57b9f1bd48da679c8a04f579211"
+    }
+  },
+  "components": [
+    {
+      "id": "youtube",
+      "type": "external",
+      "label": "YouTube",
+      "sublabel": "projector music",
+      "pos": [
+        40,
+        70
+      ],
+      "size": [
+        140,
+        62
+      ],
+      "sources": [
+        {
+          "path": "public/music.js",
+          "line": 20,
+          "end_line": 28,
+          "label": "loads YouTube's player"
+        }
+      ]
+    },
+    {
+      "id": "people",
+      "type": "external",
+      "label": "Browsers",
+      "sublabel": "laptops, projector, phones",
+      "pos": [
+        40,
+        260
+      ],
+      "size": [
+        140,
+        62
+      ],
+      "sources": [
+        {
+          "path": "public/common.js",
+          "line": 50,
+          "end_line": 52,
+          "label": "WebSocket first"
+        }
+      ]
+    },
+    {
+      "id": "ingress",
+      "type": "security",
+      "label": "Traefik",
+      "sublabel": "HTTPS for the hostname",
+      "pos": [
+        270,
+        260
+      ],
+      "size": [
+        150,
+        62
+      ],
+      "sources": [
+        {
+          "path": "deploy/iac/kubernetes/argocd/stacks/stump-the-profs/stump-the-profs.yml",
+          "line": 167,
+          "end_line": 191,
+          "label": "IngressRoute"
+        }
+      ]
+    },
+    {
+      "id": "vault",
+      "type": "security",
+      "label": "Vault",
+      "sublabel": "ADMIN_KEY",
+      "pos": [
+        510,
+        70
+      ],
+      "size": [
+        150,
+        62
+      ],
+      "sources": [
+        {
+          "path": "deploy/iac/kubernetes/argocd/stacks/stump-the-profs/stump-the-profs.yml",
+          "line": 36,
+          "end_line": 47,
+          "label": "VaultStaticSecret"
+        }
+      ]
+    },
+    {
+      "id": "server",
+      "type": "backend",
+      "label": "Game server pod",
+      "sublabel": "Node, 1 replica",
+      "pos": [
+        510,
+        260
+      ],
+      "size": [
+        150,
+        62
+      ],
+      "sources": [
+        {
+          "path": "deploy/iac/kubernetes/argocd/stacks/stump-the-profs/stump-the-profs.yml",
+          "line": 64,
+          "end_line": 136,
+          "label": "Deployment"
+        },
+        {
+          "path": "server.js",
+          "line": 334,
+          "end_line": 338,
+          "label": "listens"
+        }
+      ]
+    },
+    {
+      "id": "disk",
+      "type": "database",
+      "label": "stump-data volume",
+      "sublabel": "saved game, questions",
+      "pos": [
+        510,
+        450
+      ],
+      "size": [
+        150,
+        62
+      ],
+      "sources": [
+        {
+          "path": "deploy/iac/kubernetes/argocd/stacks/stump-the-profs/stump-the-profs.yml",
+          "line": 51,
+          "end_line": 62,
+          "label": "PersistentVolumeClaim"
+        },
+        {
+          "path": "server.js",
+          "line": 83,
+          "end_line": 100,
+          "label": "save after broadcast"
+        }
+      ]
+    },
+    {
+      "id": "argo",
+      "type": "cloud",
+      "label": "Argo CD",
+      "sublabel": "applies IaC, restarts",
+      "pos": [
+        780,
+        260
+      ],
+      "size": [
+        150,
+        62
+      ],
+      "sources": [
+        {
+          "path": "deploy/iac/kubernetes/argocd/stacks/common/stump-the-profs.yml",
+          "line": 1,
+          "end_line": 23,
+          "label": "Application"
+        }
+      ]
+    },
+    {
+      "id": "iac",
+      "type": "external",
+      "label": "IaC repo",
+      "sublabel": "cluster settings",
+      "pos": [
+        1040,
+        260
+      ],
+      "size": [
+        150,
+        62
+      ],
+      "sources": [
+        {
+          "path": "deploy/iac/kubernetes/argocd/stacks/common/stump-the-profs.yml",
+          "line": 13,
+          "end_line": 14,
+          "label": "watched path"
+        }
+      ]
+    },
+    {
+      "id": "registry",
+      "type": "cloud",
+      "label": "GHCR image",
+      "sublabel": ":latest and :hash",
+      "pos": [
+        780,
+        640
+      ],
+      "size": [
+        150,
+        62
+      ],
+      "sources": [
+        {
+          "path": "deploy/iac/kubernetes/argocd/stacks/stump-the-profs/stump-the-profs.yml",
+          "line": 94,
+          "end_line": 95,
+          "label": "image, pull Always"
+        }
+      ]
+    },
+    {
+      "id": "actions",
+      "type": "cloud",
+      "label": "GitHub Actions",
+      "sublabel": "test, then build",
+      "pos": [
+        1040,
+        640
+      ],
+      "size": [
+        150,
+        62
+      ],
+      "sources": [
+        {
+          "path": ".github/workflows/build.yml",
+          "line": 1,
+          "end_line": 58,
+          "label": "build workflow"
+        }
+      ]
+    },
+    {
+      "id": "code",
+      "type": "external",
+      "label": "App repo, main",
+      "sublabel": "this code",
+      "pos": [
+        1040,
+        800
+      ],
+      "size": [
+        150,
+        62
+      ],
+      "sources": [
+        {
+          "path": ".github/workflows/build.yml",
+          "line": 5,
+          "end_line": 7,
+          "label": "on push to main"
+        }
+      ]
+    }
+  ],
+  "boundaries": [
+    {
+      "kind": "region",
+      "label": "ACM Kubernetes cluster",
+      "wraps": [
+        "ingress",
+        "server",
+        "disk",
+        "argo"
+      ],
+      "pad": 22
+    },
+    {
+      "kind": "security-group",
+      "label": "namespace stump-the-profs",
+      "wraps": [
+        "server",
+        "disk"
+      ],
+      "pad": 14
+    }
+  ],
+  "connections": [
+    {
+      "from": "people",
+      "to": "ingress",
+      "label": "HTTPS, WebSocket",
+      "variant": "emphasis"
+    },
+    {
+      "from": "ingress",
+      "to": "server",
+      "label": "port 80",
+      "variant": "emphasis"
+    },
+    {
+      "from": "server",
+      "to": "disk",
+      "label": "save every change"
+    },
+    {
+      "from": "vault",
+      "to": "server",
+      "label": "secret",
+      "variant": "security"
+    },
+    {
+      "from": "people",
+      "to": "youtube",
+      "label": "music",
+      "variant": "dashed"
+    },
+    {
+      "from": "iac",
+      "to": "argo",
+      "label": "watched",
+      "variant": "dashed"
+    },
+    {
+      "from": "argo",
+      "to": "server",
+      "label": "deploy, restart"
+    },
+    {
+      "from": "code",
+      "to": "actions",
+      "label": "push"
+    },
+    {
+      "from": "actions",
+      "to": "registry",
+      "label": "push image"
+    },
+    {
+      "from": "registry",
+      "to": "server",
+      "label": "pull on restart",
+      "variant": "dashed"
+    }
+  ],
+  "cards": [
+    {
+      "dot": "cyan",
+      "title": "Deploying",
+      "items": [
+        "Push to main: Actions runs the tests, then builds the image",
+        "Restart the deployment in Argo CD to pull :latest",
+        "Roll back by pinning a :hash tag in the IaC repo"
+      ]
+    },
+    {
+      "dot": "amber",
+      "title": "Exactly one copy",
+      "items": [
+        "The game lives in the server's memory",
+        "1 replica with the Recreate strategy, never two at once",
+        "Saved to the volume after every change"
+      ]
+    },
+    {
+      "dot": "rose",
+      "title": "Secrets",
+      "items": [
+        "ADMIN_KEY comes from Vault, never from the repo",
+        "Questions are uploaded at runtime and kept on the volume",
+        "The repo is public: never commit data/ or .env"
+      ]
+    }
+  ]
+}

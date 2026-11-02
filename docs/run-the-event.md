@@ -50,7 +50,7 @@ The projector before the first question:
 
 ## How one question works
 
-This section is the host's side. For what teams and the crowd do, see [What teams do](#what-teams-do) and [What the crowd does](#what-the-crowd-does).
+This section is the host's side. For what teams and the crowd do, see [How to play](players.md).
 
 The host does everything with single keys. You can also click the buttons.
 
@@ -64,20 +64,9 @@ The host does everything with single keys. You can also click the buttons.
 | **R** | Reveal answer | Ends the question now and shows the answer. |
 | **Z** | Undo | Takes back your last host action. |
 
-```mermaid
-flowchart TD
-    N["N: show the question<br/>Read it out loud"] --> O["O: open answers<br/>The clock starts"]
-    O --> L["Teams pick an answer and press BUZZ<br/>Answers are sealed. Nobody speaks."]
-    L --> X{"Clock runs out,<br/>every team is in,<br/>or the host presses A"}
-    X --> A["A: read the next answer<br/>The team says it out loud"]
-    A --> J{"Is it right?"}
-    J -- "Multiple choice or true/false:<br/>the game decides" --> R
-    J -- "Free response:<br/>host presses C or W" --> R{"Right?"}
-    R -- "Yes" --> E["Question ends.<br/>Answer shown, points given."]
-    R -- "No, and answers are left" --> A
-    R -- "No, and none are left" --> E
-    E --> N
-```
+![The stages of one question](images/question-stages.png)
+
+The diagram shows each stage of a question and the key that moves it on. ([Open the interactive version](diagrams/question-stages.html); download it and open it in a browser.)
 
 ### Step by step
 
@@ -130,89 +119,9 @@ flowchart TD
 - A wrong answer costs nothing.
 - The side totals (Students against Professors) add up every team on that side.
 
-## What teams do
+## What teams and the crowd do
 
-Each team plays on one laptop at `/player.html`. This is their loop for every question.
-
-```mermaid
-flowchart TD
-    Q["A question appears<br/>Read it and pick an answer.<br/>You can change your pick."] --> O["Answers open<br/>The clock starts"]
-    O --> B["Press BUZZ<br/>Your answer is locked in and sealed.<br/>You cannot change it now."]
-    B --> W["Wait quietly<br/>until answers close"]
-    W --> T["YOUR TURN<br/>Say your answer out loud"]
-    T --> R["The host or the game rules on it.<br/>The question ends when someone is right."]
-    R --> Q
-```
-
-1. **A question appears.** Read it. Click the answer you think is right (or type it, for free response). You can change your pick as often as you like until you press BUZZ.
-2. **Answers open** and a clock starts on your screen. The button now says **BUZZ**.
-3. **Press BUZZ** to lock in your pick. Your answer is sealed: only the host can see it. You cannot change it. The faster you buzz, the earlier your answer is read.
-
-   | Picking an answer | After pressing BUZZ |
-   |---|---|
-   | ![Picking an answer](images/player-pick.png) | ![Locked in](images/player-locked.png) |
-
-4. **Stay quiet** until answers close. Saying your answer early only helps the other teams.
-5. **When the button says YOUR TURN,** say your answer out loud. The screen shows it so you read it exactly as you locked it in.
-
-   ![Your turn](images/player-your-turn.png)
-
-6. **The result shows on the button.** Your score, rank and stats update on the right.
-
-   ![After the question](images/player-revealed.png)
-
-**If you do not buzz before the clock runs out,** you have no answer for that question and score nothing. A wrong answer also scores nothing; it never takes points away. So it is always worth locking in your best guess.
-
-### What the big button means
-
-| Button says | Colour | What it means |
-|---|---|---|
-| **WAIT** | Grey | No question yet, or the question is showing but answers are not open. You can already pick. |
-| **PICK** | Grey | Answers are open. Choose an answer first. |
-| **BUZZ** | Red | Press it to lock in the answer shown under the word. |
-| **TIME** | Grey | The clock ran out before you buzzed. |
-| **LOCKED IN** | Red, pressed in | Your answer is sealed. While answers are open it shows your buzz order ("You were 2nd to buzz"). Once reading starts it shows your place ("Yours is read 3rd"). |
-| **YOUR TURN** | Yellow | Say your answer out loud now. |
-| **WRONG** | Grey, pressed in | Your answer was read and it was not right. |
-| **NO ANSWER** | Grey, pressed in | You did not lock in before answers closed. |
-| **DONE** | Green | The question is over. It says how you did: "Correct!", "Also right!", who got it, or "The host will mark your answer" (free response). |
-
-### Keyboard shortcuts for teams
-
-| Key | Does |
-|---|---|
-| **A** to **F** | Pick choice A to F (multiple choice) |
-| **T** / **F** | Pick True / False |
-| **Space** | BUZZ |
-| **Enter** | BUZZ, while typing a free-response answer |
-
-### The rest of the team screen
-
-- **Score, rank and side:** your points, your place among all teams, and how far your side (Students or Professors) is ahead or behind.
-- **The bar:** Students' total against Professors' total.
-- **Your stats:** how often you were first to buzz, accuracy, average and fastest reaction time (from answers opening to your buzz), right and wrong answers, steals (winning after another team was wrong) and "also right" answers.
-- **History:** how you did on each finished question.
-- **Rejoin code:** bottom right. Write it down. On another laptop, type it in the box under **Join the game** to get back in.
-
-## What the crowd does
-
-Anyone can play along on a phone. Open the home page, tap **Display**, type a nickname (up to 20 characters, not already taken) and tap **Join**. The phone shows the same question, timer and scores as the projector, with a **Play along** box.
-
-![The phone view](images/phone.png)
-
-For every question:
-
-1. **Predict who gets it** when the question appears: **Students**, **Profs** or **Nobody**. You can change your mind until answers open. Right predictions score 10 points.
-2. **Answer along** while the teams are answering (multiple choice and true/false only). Tap one answer. You cannot change it. It closes when the teams' answers close. Right answers score 10 points.
-3. **Watch the answers** being read out on the projector or your phone.
-4. **See how you did.** After the answer is shown, the box says "Prediction right!", "Answer right!" or that you missed.
-
-At any time:
-
-- **Cheer** with the **Go Students!** and **Go Profs!** buttons. The cheer meter on the projector shows which side is loudest right now; it fades when people stop.
-- **Your score and rank** among the crowd are at the top of the **Play along** box. The top 5 show on the projector.
-
-The phone remembers you. If the page closes, open it again and you are back in. If the host resets the game, everyone joins again.
+Teams and the audience have their own one-page guide: [How to play](players.md). It covers the team loop, what the big button means, the team shortcuts, and how the crowd joins, predicts, answers along and cheers. Print it, share the link, or keep it open to answer questions.
 
 ## Read this to the room
 

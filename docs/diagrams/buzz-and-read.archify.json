@@ -1,0 +1,319 @@
+{
+  "schema_version": 1,
+  "diagram_type": "sequence",
+  "meta": {
+    "title": "What happens when a team buzzes, and when the host reads",
+    "output": "docs/diagrams/buzz-and-read.html",
+    "locale": "en",
+    "quality_profile": "showcase",
+    "repository": {
+      "url": "https://github.com/acm-uic/Stump-The-Profs-Website.git",
+      "provider": "github",
+      "link_mode": "web",
+      "revision": "c10817b9caf7a57b9f1bd48da679c8a04f579211"
+    }
+  },
+  "participants": [
+    {
+      "id": "team",
+      "type": "frontend",
+      "label": "Team laptop",
+      "sublabel": "player.js",
+      "sources": [
+        {
+          "path": "public/player.js",
+          "line": 104,
+          "end_line": 112,
+          "label": "sendBuzz"
+        }
+      ]
+    },
+    {
+      "id": "host",
+      "type": "frontend",
+      "label": "Host page",
+      "sublabel": "admin.js",
+      "sources": [
+        {
+          "path": "public/admin.js",
+          "line": 58,
+          "end_line": 58,
+          "label": "Read next answer"
+        }
+      ]
+    },
+    {
+      "id": "server",
+      "type": "backend",
+      "label": "Game server",
+      "sublabel": "server.js",
+      "sources": [
+        {
+          "path": "server.js",
+          "line": 290,
+          "end_line": 295,
+          "label": "team:buzz"
+        },
+        {
+          "path": "server.js",
+          "line": 231,
+          "end_line": 262,
+          "label": "admin:action"
+        },
+        {
+          "path": "server.js",
+          "line": 83,
+          "end_line": 100,
+          "label": "broadcast"
+        }
+      ]
+    },
+    {
+      "id": "rules",
+      "type": "backend",
+      "label": "Game rules",
+      "sublabel": "game.js",
+      "sources": [
+        {
+          "path": "game.js",
+          "line": 200,
+          "end_line": 221,
+          "label": "buzz"
+        },
+        {
+          "path": "game.js",
+          "line": 236,
+          "end_line": 253,
+          "label": "nextAnswer"
+        }
+      ]
+    },
+    {
+      "id": "views",
+      "type": "security",
+      "label": "Views",
+      "sublabel": "views.js",
+      "sources": [
+        {
+          "path": "views.js",
+          "line": 112,
+          "end_line": 165,
+          "label": "publicView"
+        },
+        {
+          "path": "views.js",
+          "line": 190,
+          "end_line": 216,
+          "label": "adminView"
+        }
+      ]
+    },
+    {
+      "id": "projector",
+      "type": "frontend",
+      "label": "Projector",
+      "sublabel": "display.js",
+      "sources": [
+        {
+          "path": "public/display.js",
+          "line": 223,
+          "end_line": 223,
+          "label": "draws each state"
+        }
+      ]
+    },
+    {
+      "id": "disk",
+      "type": "database",
+      "label": "Disk",
+      "sublabel": "state.json",
+      "sources": [
+        {
+          "path": "server.js",
+          "line": 94,
+          "end_line": 98,
+          "label": "saveState after broadcast"
+        }
+      ]
+    }
+  ],
+  "segments": [
+    {
+      "from": 150,
+      "to": 520,
+      "label": "1. A team locks in"
+    },
+    {
+      "from": 530,
+      "to": 755,
+      "label": "2. The host reads answers"
+    }
+  ],
+  "messages": [
+    {
+      "id": "buzz",
+      "from": "team",
+      "to": "server",
+      "y": 170,
+      "label": "team:buzz {answer}",
+      "variant": "emphasis",
+      "note": "BUZZ sends the picked answer"
+    },
+    {
+      "id": "rule-buzz",
+      "from": "server",
+      "to": "rules",
+      "y": 220,
+      "label": "buzz(team, answer, now)",
+      "note": "server clock; refuses late or invalid answers, then seals it"
+    },
+    {
+      "id": "sealed",
+      "from": "rules",
+      "to": "server",
+      "y": 300,
+      "label": "sealed",
+      "variant": "return"
+    },
+    {
+      "id": "build-views",
+      "from": "server",
+      "to": "views",
+      "y": 330,
+      "label": "build each view",
+      "variant": "security",
+      "note": "answers filtered per audience"
+    },
+    {
+      "id": "views-back",
+      "from": "views",
+      "to": "server",
+      "y": 390,
+      "label": "public, team, admin",
+      "variant": "return"
+    },
+    {
+      "id": "to-host",
+      "from": "server",
+      "to": "host",
+      "y": 420,
+      "label": "state: every sealed answer"
+    },
+    {
+      "id": "to-projector",
+      "from": "server",
+      "to": "projector",
+      "y": 448,
+      "label": "state: 3 of 6 locked in"
+    },
+    {
+      "id": "to-team",
+      "from": "server",
+      "to": "team",
+      "y": 476,
+      "label": "state: LOCKED IN"
+    },
+    {
+      "id": "save",
+      "from": "server",
+      "to": "disk",
+      "y": 504,
+      "label": "save game",
+      "variant": "dashed"
+    },
+    {
+      "id": "next",
+      "from": "host",
+      "to": "server",
+      "y": 550,
+      "label": "admin:action next",
+      "variant": "emphasis",
+      "note": "admin key checked; undo copy saved"
+    },
+    {
+      "id": "rule-next",
+      "from": "server",
+      "to": "rules",
+      "y": 610,
+      "label": "nextAnswer()",
+      "note": "next team in steal order; mc and tf judge themselves"
+    },
+    {
+      "id": "ruling",
+      "from": "rules",
+      "to": "server",
+      "y": 680,
+      "label": "ruling, points",
+      "variant": "return"
+    },
+    {
+      "id": "to-projector-2",
+      "from": "server",
+      "to": "projector",
+      "y": 710,
+      "label": "state: answer + ruling"
+    },
+    {
+      "id": "to-team-2",
+      "from": "server",
+      "to": "team",
+      "y": 738,
+      "label": "state: YOUR TURN or result"
+    }
+  ],
+  "activations": [
+    {
+      "participant": "server",
+      "from": 165,
+      "to": 745,
+      "type": "backend"
+    },
+    {
+      "participant": "rules",
+      "from": 215,
+      "to": 306,
+      "type": "backend"
+    },
+    {
+      "participant": "views",
+      "from": 325,
+      "to": 396,
+      "type": "security"
+    },
+    {
+      "participant": "rules",
+      "from": 605,
+      "to": 686,
+      "type": "backend"
+    }
+  ],
+  "cards": [
+    {
+      "dot": "emerald",
+      "title": "Sealed until read",
+      "items": [
+        "The admin view carries every sealed answer",
+        "The projector and teams only see how many are in",
+        "An answer reaches everyone once it is read out"
+      ]
+    },
+    {
+      "dot": "cyan",
+      "title": "The server owns time",
+      "items": [
+        "Lock-ins are timed with the server clock",
+        "Pages count down from a duration, not a clock time",
+        "A timer closes answers when the clock runs out"
+      ]
+    },
+    {
+      "dot": "amber",
+      "title": "One path for every change",
+      "items": [
+        "Every accepted action ends in broadcast()",
+        "broadcast() sends each audience its view, then saves",
+        "A restart reloads the save; only Undo is lost"
+      ]
+    }
+  ]
+}

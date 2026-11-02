@@ -8,10 +8,14 @@ It runs at **https://stumptheprofs.acmuic.org**.
 
 ## Guides
 
-| Guide | Read it if you are… |
-|---|---|
-| [Running the event](docs/run-the-event.md) | hosting or helping on the night. Checklist, host keys, what each screen shows, and what to do when something goes wrong. |
-| [Before the event](docs/before-the-event.md) | preparing the game. Writing and uploading questions, music, running it on your own computer, updating the live site, and rehearsing. |
+Pick the one for you:
+
+| Guide | For | What is in it |
+|---|---|---|
+| [How to play](docs/players.md) | Teams and the audience | Joining, answering, buzzing, what the big button means, and playing along on a phone. |
+| [Running the event](docs/run-the-event.md) | Hosts and volunteers on the night | Checklist, host keys, each stage of a question, and what to do when something goes wrong. |
+| [Before the event](docs/before-the-event.md) | Organizers | Writing and uploading questions, music, the admin key, and rehearsing. No coding. |
+| [How the code works](docs/developers.md) | Developers | The architecture, how a buzz travels through the code, where things are, and how to change and deploy it. |
 
 ## How a question works
 
@@ -49,7 +53,7 @@ cp .env.example .env    # then put a password after ADMIN_KEY=
 npm run dev
 ```
 
-Open `http://localhost:3000`. Run the automatic checks with `npm test`. The [preparation guide](docs/before-the-event.md#run-it-on-your-own-computer) has the details.
+Open `http://localhost:3000`. Run the automatic checks with `npm test`. The [developer guide](docs/developers.md#run-it-on-your-computer) has the details.
 
 ## Good to know
 

@@ -1,0 +1,237 @@
+{
+  "schema_version": 3,
+  "diagram_type": "lifecycle",
+  "meta": {
+    "title": "The stages of one question",
+    "output": "docs/diagrams/question-stages.html",
+    "locale": "en",
+    "quality_profile": "showcase",
+    "repository": {
+      "url": "https://github.com/acm-uic/Stump-The-Profs-Website.git",
+      "provider": "github",
+      "link_mode": "web",
+      "revision": "c10817b9caf7a57b9f1bd48da679c8a04f579211"
+    }
+  },
+  "mainPath": [
+    "lobby",
+    "preview",
+    "open",
+    "judging",
+    "revealed"
+  ],
+  "states": [
+    {
+      "id": "lobby",
+      "type": "start",
+      "label": "Lobby",
+      "sublabel": "teams join",
+      "tag": "before Q1",
+      "step": "01",
+      "sources": [
+        {
+          "path": "game.js",
+          "line": 35,
+          "end_line": 48,
+          "label": "new game starts in lobby"
+        }
+      ]
+    },
+    {
+      "id": "preview",
+      "type": "active",
+      "label": "Question shown",
+      "sublabel": "read it out; teams pick",
+      "tag": "no clock",
+      "step": "02",
+      "sources": [
+        {
+          "path": "game.js",
+          "line": 155,
+          "end_line": 169,
+          "label": "showQuestion"
+        }
+      ]
+    },
+    {
+      "id": "open",
+      "type": "active",
+      "label": "Answers open",
+      "sublabel": "BUZZ seals each answer",
+      "tag": "clock runs",
+      "step": "03",
+      "sources": [
+        {
+          "path": "game.js",
+          "line": 171,
+          "end_line": 176,
+          "label": "openBuzzers"
+        },
+        {
+          "path": "game.js",
+          "line": 200,
+          "end_line": 221,
+          "label": "buzz seals the answer"
+        }
+      ]
+    },
+    {
+      "id": "judging",
+      "type": "decision",
+      "label": "Reading answers",
+      "sublabel": "one at a time, steal order",
+      "tag": "A",
+      "step": "04",
+      "sources": [
+        {
+          "path": "game.js",
+          "line": 236,
+          "end_line": 253,
+          "label": "nextAnswer"
+        },
+        {
+          "path": "game.js",
+          "line": 287,
+          "end_line": 296,
+          "label": "reading order"
+        }
+      ]
+    },
+    {
+      "id": "deciding",
+      "type": "waiting",
+      "label": "Host deciding",
+      "sublabel": "free response only",
+      "tag": "C or W",
+      "sources": [
+        {
+          "path": "game.js",
+          "line": 250,
+          "end_line": 252,
+          "label": "waits when not auto-judged"
+        },
+        {
+          "path": "game.js",
+          "line": 256,
+          "end_line": 283,
+          "label": "judge"
+        }
+      ]
+    },
+    {
+      "id": "revealed",
+      "type": "success",
+      "label": "Answer revealed",
+      "sublabel": "points given",
+      "tag": "result",
+      "step": "05",
+      "sources": [
+        {
+          "path": "game.js",
+          "line": 308,
+          "end_line": 325,
+          "label": "endQuestion"
+        }
+      ]
+    }
+  ],
+  "transitions": [
+    {
+      "id": "lobby-preview",
+      "from": "lobby",
+      "to": "preview",
+      "label": "N"
+    },
+    {
+      "id": "preview-open",
+      "from": "preview",
+      "to": "open",
+      "label": "O"
+    },
+    {
+      "id": "open-judging",
+      "from": "open",
+      "to": "judging",
+      "label": "close"
+    },
+    {
+      "id": "judging-revealed",
+      "from": "judging",
+      "to": "revealed",
+      "label": "done",
+      "variant": "emphasis"
+    },
+    {
+      "id": "open-revealed",
+      "from": "open",
+      "to": "revealed",
+      "label": "nobody answered, or R",
+      "variant": "dashed"
+    },
+    {
+      "id": "judging-deciding",
+      "from": "judging",
+      "to": "deciding",
+      "label": "free, not exact"
+    },
+    {
+      "id": "deciding-judging",
+      "from": "deciding",
+      "to": "judging",
+      "label": "W: next answer"
+    },
+    {
+      "id": "deciding-revealed",
+      "from": "deciding",
+      "to": "revealed",
+      "label": "C",
+      "variant": "emphasis"
+    },
+    {
+      "id": "revealed-preview",
+      "from": "revealed",
+      "to": "preview",
+      "label": "N: next question"
+    }
+  ],
+  "cards": [
+    {
+      "dot": "cyan",
+      "title": "Host keys",
+      "items": [
+        "N shows the next question",
+        "O opens answers and starts the clock",
+        "A reads the next sealed answer",
+        "C or W rules on a free-response answer",
+        "R reveals the answer at any point; Z undoes"
+      ]
+    },
+    {
+      "dot": "violet",
+      "title": "When stages change",
+      "items": [
+        "close: the clock runs out, every team is in, or the host presses A",
+        "done: the first right answer, or the last answer read",
+        "Nobody answered: the answer is revealed straight away"
+      ]
+    },
+    {
+      "dot": "emerald",
+      "title": "Why nobody can copy",
+      "items": [
+        "BUZZ seals a team's answer; only the host sees it",
+        "Nothing is said aloud until answers close",
+        "Multiple choice and true/false judge themselves when read"
+      ]
+    },
+    {
+      "dot": "amber",
+      "title": "Points",
+      "items": [
+        "First right answer in reading order: full points",
+        "Every other right answer: a quarter",
+        "Wrong or no answer: nothing"
+      ]
+    }
+  ]
+}

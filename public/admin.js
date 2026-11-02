@@ -106,6 +106,27 @@ $("#upload").addEventListener("change", async () => {
   });
 });
 
+// Pictures go one at a time as ordinary web requests (see /admin/images in server.js).
+// The name a question uses in its "image" field is the file's name.
+$("#upload-images").addEventListener("change", async () => {
+  const files = [...$("#upload-images").files];
+  $("#upload-images").value = "";
+  const uploaded = [];
+  const problems = [];
+  for (const file of files) {
+    toolMessage(`Uploading ${file.name}…`, true);
+    const reply = await fetch(`/admin/images/${encodeURIComponent(file.name)}`, {
+      method: "POST",
+      headers: { "x-admin-key": localStorage.getItem(KEY_STORAGE) ?? "" },
+      body: file,
+    }).then((response) => response.json()).catch(() => ({ ok: false, error: "could not reach the server" }));
+    if (reply.ok) uploaded.push(file.name);
+    else problems.push(`${file.name}: ${reply.error}`);
+  }
+  const done = uploaded.length ? `Uploaded ${uploaded.join(", ")}. ` : "";
+  toolMessage((done + problems.join(". ")).trim(), problems.length === 0);
+});
+
 // Keyboard shortcuts for the host. Clicking a disabled button does nothing, and the
 // server checks the phase anyway, so a double press cannot judge twice.
 const SHORTCUTS = { n: "#show", o: "#open", a: "#next", c: "#correct", w: "#wrong", r: "#reveal", z: "#undo" };
@@ -130,6 +151,7 @@ function answerRow(view, entry) {
   const mark = document.createElement("span");
   if (entry.winner) { mark.textContent = `Won +${view.result?.points ?? ""}`; mark.className = "mark-right"; }
   else if (entry.correct === true) { mark.textContent = entry.awarded ? `Also right +${view.lockInPoints}` : "Right"; mark.className = "mark-right"; }
+  else if (entry.partial) { mark.textContent = entry.partialPaid ? `Partly right +${entry.partialPaid}` : "Partly right"; mark.className = "mark-right"; }
   else if (entry.correct === false) { mark.textContent = entry.read || view.phase === "revealed" ? "Wrong" : "Wrong, not read yet"; mark.className = "mark-wrong"; }
   else if (view.waitingOn?.id === entry.teamId) { mark.textContent = "Being read: Correct or Wrong?"; mark.className = "mark-pending"; }
   else { mark.textContent = view.phase === "revealed" ? "Needs marking" : "You decide when it is read"; mark.className = "mark-pending"; }
@@ -248,11 +270,21 @@ socket.on("state", (view) => {
   $("#question-list").replaceChildren(...view.questionList.map((q) => {
     const li = document.createElement("li");
     li.textContent = `[${q.type}] ${q.prompt}${q.music ? " (has music)" : ""}`;
+    if (q.image) li.append(" ", pictureNote(q.image, view.uploadedImages));
     if (q.number === view.questionNumber) li.className = "current";
     else if (q.played) li.className = "played";
     return li;
   }));
 });
+
+// "(picture)", or a warning when the question names a picture nobody has uploaded.
+function pictureNote(image, uploadedImages) {
+  const note = document.createElement("span");
+  const missing = !image.startsWith("https://") && !uploadedImages.includes(image);
+  note.textContent = missing ? `(picture missing: upload ${image})` : "(picture)";
+  if (missing) note.className = "error";
+  return note;
+}
 
 // ---- Music: the projector plays it; this panel steers it ----
 

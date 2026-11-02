@@ -150,6 +150,8 @@ function renderCrowdPanel() {
   const canPick = hasQuestion && (view.question.type === "mc" || view.question.type === "tf");
   $("#pick-box").hidden = !canPick;
   if (canPick) {
+    // The crowd taps one choice even when several are right; any right one scores.
+    $("#pick-label").textContent = view.question.multiple ? "Your answer (any one you think is right):" : "Your answer:";
     buildPickButtons(view);
     for (const button of document.querySelectorAll("#pick-row button")) {
       const value = JSON.parse(button.dataset.value);

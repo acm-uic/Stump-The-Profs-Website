@@ -65,7 +65,7 @@ test("a sealed answer reaches no page but the admin's until it is read out", () 
   assert.equal(adminView(state, 1200).answers[0].answer, 0);
   buzz(state, b.id, 1, 1300); // everyone in: judging
   nextAnswer(state); // A read out, wrong
-  assert.deepEqual(publicView(state, 1400).readOut, [{ team: { id: a.id, name: "Byte Me", side: "student" }, answer: 0, correct: false }]);
+  assert.deepEqual(publicView(state, 1400).readOut, [{ team: { id: a.id, name: "Byte Me", side: "student" }, answer: 0, correct: false, partial: null }]);
 });
 
 test("a question's accepted spellings and music link never reach the pages", () => {

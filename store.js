@@ -1,6 +1,7 @@
 import fs from "node:fs";
 import path from "node:path";
 import { parseYouTube } from "./music.js";
+import { isImageName, isImageLink } from "./images.js";
 import { MAX_ANSWER_SECONDS } from "./config.js";
 
 const TYPES = ["free", "mc", "tf"];
@@ -29,8 +30,14 @@ export function validateQuestions(list) {
         fail("mc choices must be a list of 2 to 6 answers");
       }
       if (!q.choices.every(isText)) fail("every mc choice must be non-empty text");
-      if (!Number.isInteger(q.answer) || q.answer < 0 || q.answer >= q.choices.length) {
-        fail(`mc answer must be a choice number from 0 to ${q.choices.length - 1}`);
+      const isChoice = (n) => Number.isInteger(n) && n >= 0 && n < q.choices.length;
+      if (Array.isArray(q.answer)) {
+        if (q.answer.length === 0 || !q.answer.every(isChoice)) {
+          fail(`mc answer lists must hold choice numbers from 0 to ${q.choices.length - 1}, e.g. [0, 2]`);
+        }
+        if (new Set(q.answer).size !== q.answer.length) fail("mc answer lists must not repeat a choice");
+      } else if (!isChoice(q.answer)) {
+        fail(`mc answer must be a choice number from 0 to ${q.choices.length - 1}, or a list of them like [0, 2]`);
       }
     } else if (q.type === "tf") {
       if (typeof q.answer !== "boolean") fail("tf answer must be true or false (without quotes)");
@@ -52,6 +59,13 @@ export function validateQuestions(list) {
     if (q.music !== undefined && !parseYouTube(q.music)) {
       fail("music must be a YouTube link, e.g. https://youtu.be/VIDEO_ID?t=90 (add &end=150 to stop at 2:30)");
     }
+    if (q.image !== undefined && !isImageName(q.image) && !isImageLink(q.image)) {
+      fail("image must be the file name of a picture uploaded on the host page (like binary-tree.png, no spaces) or an https:// link");
+    }
+    if (q.imageAlt !== undefined) {
+      if (q.image === undefined) fail("imageAlt describes the image, so it needs an image too");
+      if (!isText(q.imageAlt)) fail("imageAlt must be text");
+    }
   });
   return list;
 }
@@ -66,14 +80,29 @@ export function loadQuestions(filePath) {
   return validateQuestions(list);
 }
 
-// Writes JSON so the file is always complete: write a temporary file, then rename it
+// Writes a file so it is always complete: write a temporary file, then rename it
 // over the real one. A rename happens all at once, so a crash mid-write leaves the
 // previous save intact instead of half a file.
-export function writeJsonAtomic(filePath, data) {
+function writeFileAtomic(filePath, contents) {
   fs.mkdirSync(path.dirname(filePath), { recursive: true });
   const temp = `${filePath}.tmp`;
-  fs.writeFileSync(temp, JSON.stringify(data, null, 2));
+  fs.writeFileSync(temp, contents);
   fs.renameSync(temp, filePath);
+}
+
+export function writeJsonAtomic(filePath, data) {
+  writeFileAtomic(filePath, JSON.stringify(data, null, 2));
+}
+
+// An uploaded picture. images.js has already checked its name and contents.
+export function saveImage(data, filePath) {
+  writeFileAtomic(filePath, data);
+}
+
+// The names of the pictures already uploaded, so the host page can warn about missing ones.
+export function listImages(dirPath) {
+  if (!fs.existsSync(dirPath)) return [];
+  return fs.readdirSync(dirPath).filter(isImageName);
 }
 
 export function saveQuestions(list, filePath) {

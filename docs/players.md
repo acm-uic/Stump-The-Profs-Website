@@ -10,7 +10,9 @@ Students and professors race to answer computer science questions. Teams play on
 - Pick your answer, then press **BUZZ**. That locks it in, sealed. Nobody but the host can see it, and you cannot change it.
 - When answers close, the host reads them out one by one: the fastest team first, then switching between Students and Professors.
 - The first right answer gets full points (300 typed, 200 multiple choice, 100 true or false). Every other right answer gets a quarter.
+- Some multiple choice questions say **Pick all that apply**. Select every choice you think is right. All of them counts as a right answer. Some of them, with no wrong ones, is **Partly right** and earns a few points. Any wrong choice earns nothing.
 - A wrong answer, or no answer, costs nothing. Always lock in your best guess.
+- Some questions have a picture. It shows on your screen as well as on the projector.
 
 ## For teams
 
@@ -30,13 +32,17 @@ flowchart TD
     R --> Q
 ```
 
-1. **A question appears.** Read it. Click the answer you think is right (or type it, for free response). You can change your pick as often as you like until you press BUZZ.
+1. **A question appears.** Read it. Click the answer you think is right (or type it, for free response). On **Pick all that apply**, click every answer you think is right; click one again to unpick it. You can change your pick as often as you like until you press BUZZ.
 2. **Answers open** and a clock starts on your screen. The button now says **BUZZ**.
 3. **Press BUZZ** to lock in your pick. Your answer is sealed: only the host can see it. You cannot change it. The faster you buzz, the earlier your answer is read.
 
    | Picking an answer | After pressing BUZZ |
    |---|---|
    | ![Picking an answer](images/player-pick.png) | ![Locked in](images/player-locked.png) |
+
+   On a **Pick all that apply** question, the chips above the question say so. Click every answer you think is right; the chosen ones turn dark.
+
+   ![Two answers picked on a Pick all that apply question with a picture](images/player-pick-all.png)
 
 4. **Stay quiet** until answers close. Saying your answer early only helps the other teams.
 5. **When the button says YOUR TURN,** say your answer out loud. The screen shows it so you read it exactly as you locked it in.
@@ -60,14 +66,15 @@ flowchart TD
 | **LOCKED IN** | Red, pressed in | Your answer is sealed. While answers are open it shows your buzz order ("You were 2nd to buzz"). Once reading starts it shows your place ("Yours is read 3rd"). |
 | **YOUR TURN** | Yellow | Say your answer out loud now. |
 | **WRONG** | Grey, pressed in | Your answer was read and it was not right. |
+| **PARTLY RIGHT** | Grey, pressed in | Pick all that apply: you found some of the right answers and no wrong ones. Other teams are still read. Your points are added when the question ends. |
 | **NO ANSWER** | Grey, pressed in | You did not lock in before answers closed. |
-| **DONE** | Green | The question is over. It says how you did: "Correct!", "Also right!", who got it, or "The host will mark your answer" (free response). |
+| **DONE** | Green | The question is over. It says how you did: "Correct!", "Also right!", "Partly right!", who got it, or "The host will mark your answer" (free response). |
 
 ### Keyboard shortcuts
 
 | Key | Does |
 |---|---|
-| **A** to **F** | Pick choice A to F (multiple choice) |
+| **A** to **F** | Pick choice A to F (multiple choice). On Pick all that apply, press again to unpick. |
 | **T** / **F** | Pick True / False |
 | **Space** | BUZZ |
 | **Enter** | BUZZ, while typing a free-response answer |
@@ -89,7 +96,7 @@ Anyone can play along on a phone. Open the home page, tap **Display**, type a ni
 For every question:
 
 1. **Predict who gets it** when the question appears: **Students**, **Profs** or **Nobody**. You can change your mind until answers open. Right predictions score 10 points.
-2. **Answer along** while the teams are answering (multiple choice and true/false only). Tap one answer. You cannot change it. It closes when the teams' answers close. Right answers score 10 points.
+2. **Answer along** while the teams are answering (multiple choice and true/false only). Tap one answer. You cannot change it. On **Pick all that apply** questions you still tap one; any of the right answers counts. It closes when the teams' answers close. Right answers score 10 points.
 3. **Watch the answers** being read out on the projector or your phone.
 4. **See how you did.** After the answer is shown, the box says "Prediction right!", "Answer right!" or that you missed.
 

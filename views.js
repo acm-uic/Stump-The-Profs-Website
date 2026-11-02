@@ -1,12 +1,12 @@
 // Builds the slice of state each kind of page is allowed to see.
 //
 // The team view is the contract between the server and player.js. Its shape:
-//   phase, questionNumber, questionTotal, question { type, prompt, choices?, category?, points, answer? }
+//   phase, questionNumber, questionTotal, question { type, prompt, choices?, multiple?, category?, points, image?, answer? }
 //   teams [{ id, name, side, score, rank }], sides { student, prof }, buzzes, floorTeam, upNext
-//   readOut [{ team, answer, correct }], answerRemainingMs, answerTotalMs, answerCount
+//   readOut [{ team, answer, correct, partial }], answerRemainingMs, answerTotalMs, answerCount
 //   lockInPoints, result, crowd, answersOpen, music
 //   me { id, name, side, score, code, rank, rankOf }
-//   buzzer: "locked" | "ready" | "buzzed" | "floor" | "tried" | "missed" | "over", place (number or null)
+//   buzzer: "locked" | "ready" | "buzzed" | "floor" | "tried" | "partial" | "missed" | "over", place (number or null)
 //   myAnswer, canAnswer
 //   stats { buzzesWon, correct, wrong, steals, accuracy, avgReactionMs, fastestReactionMs, lockInHits }
 //   history [{ questionNumber, type, result, points }]
@@ -17,9 +17,10 @@
 // Views only copy; they never change the state.
 
 import { currentQuestion, upNext, answerDeadline } from "./game.js";
-import { pointsFor, lockInPoints, answerSeconds } from "./scoring.js";
+import { pointsFor, lockInPoints, answerSeconds, isMultiAnswer } from "./scoring.js";
 import { crowdView } from "./crowd.js";
 import { parseYouTube } from "./music.js";
+import { isImageLink } from "./images.js";
 
 function questionFor(state, includeAnswer) {
   const q = currentQuestion(state);
@@ -29,9 +30,18 @@ function questionFor(state, includeAnswer) {
   const { type, prompt, choices, category } = q;
   const shown = { type, prompt, points: pointsFor(q), seconds: answerSeconds(q) };
   if (choices) shown.choices = choices;
+  if (isMultiAnswer(q)) shown.multiple = true; // "pick all that apply"; says nothing about which
   if (category) shown.category = category;
+  if (q.image) shown.image = { src: imageSrc(state, q.image), alt: q.imageAlt ?? "Picture for this question" };
   if (includeAnswer) shown.answer = q.answer;
   return shown;
+}
+
+// A link is used as it is. An uploaded picture is fetched from the server, which only
+// hands it out while this question is on screen (see /question-image in server.js).
+function imageSrc(state, image) {
+  if (isImageLink(image)) return image;
+  return `/question-image/${state.questionIndex + 1}/${encodeURIComponent(image)}`;
 }
 
 // Competition ranking: tied teams share a rank, and the next rank is skipped (1, 1, 3).
@@ -53,7 +63,7 @@ export function buzzerState(state, teamId) {
   // Judging: the sealed answers are being read out.
   if (!mine) return { buzzer: "missed", place: null };
   if (current.activeTeamId === teamId) return { buzzer: "floor", place: null };
-  if (current.attempted.includes(teamId)) return { buzzer: "tried", place: null };
+  if (current.attempted.includes(teamId)) return { buzzer: mine.partial ? "partial" : "tried", place: null };
   const index = upNext(state).indexOf(teamId);
   return { buzzer: "buzzed", place: index >= 0 ? index + 1 : null };
 }
@@ -82,6 +92,9 @@ export function teamHistory(state, teamId) {
     } else if (record.lockInsAwarded.includes(teamId)) {
       result = "Also right";
       points = record.lockInPoints;
+    } else if (record.partialsAwarded?.[teamId]) {
+      result = "Partly right";
+      points = record.partialsAwarded[teamId];
     } else if (record.attempted.includes(teamId)) {
       result = "Wrong";
     } else if (record.answered.includes(teamId)) {
@@ -140,6 +153,7 @@ export function publicView(state, now) {
       team: teamSummary(state.teams[id]),
       answer: current.answers[id].answer,
       correct: id === current.activeTeamId ? null : current.answers[id].correct,
+      partial: id === current.activeTeamId ? null : current.answers[id].partial ?? null,
     })),
     floorTeam: judging ? teamSummary(state.teams[current.activeTeamId]) : null,
     upNext: judging ? upNext(state).map((id) => teamSummary(state.teams[id])) : [],
@@ -181,7 +195,10 @@ export function teamView(state, teamId, now) {
     history: teamHistory(state, teamId),
     // Only this team's own answer, and whether it was right only once it has been ruled on.
     myAnswer: entry
-      ? { answer: entry.answer, correct: ruled ? entry.correct : undefined, awarded: entry.awarded }
+      ? {
+          answer: entry.answer, correct: ruled ? entry.correct : undefined, awarded: entry.awarded,
+          partialPoints: entry.partialPaid ?? null,
+        }
       : null,
     canAnswer: state.phase === "open" && !entry && deadline !== null && now <= deadline,
   };
@@ -210,6 +227,7 @@ export function adminView(state, now) {
       type: q.type,
       prompt: q.prompt,
       music: Boolean(q.music),
+      image: q.image ?? null,
       played: i <= state.questionIndex,
     })),
   };

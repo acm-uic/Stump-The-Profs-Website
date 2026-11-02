@@ -14,8 +14,9 @@ Pick the one for you:
 |---|---|---|
 | [How to play](docs/players.md) | Teams and the audience | Joining, answering, buzzing, what the big button means, and playing along on a phone. |
 | [Running the event](docs/run-the-event.md) | Hosts and volunteers on the night | Checklist, host keys, each stage of a question, and what to do when something goes wrong. |
-| [Before the event](docs/before-the-event.md) | Organizers | Writing and uploading questions, music, the admin key, and rehearsing. No coding. |
+| [Before the event](docs/before-the-event.md) | Organizers | Writing and uploading questions and pictures, music, the admin key, and rehearsing. No coding. |
 | [How the code works](docs/developers.md) | Developers | The architecture, how a buzz travels through the code, where things are, and how to change and deploy it. |
+| [Frequently asked questions](docs/faq.md) | Everyone | Short answers to common questions, with links to the guides above. |
 
 ## How a question works
 
@@ -26,6 +27,8 @@ Pick the one for you:
 5. The first right answer gets full points. Every other right answer gets a quarter.
 
 Because every answer is sealed before anyone speaks, no team can copy another.
+
+Questions can show a picture. A multiple choice question can have several right answers ("pick all that apply"): every right choice scores as a right answer, some of them with no wrong ones scores a small share, and any wrong choice scores nothing.
 
 | Type | First right answer | Any other right answer |
 |---|---|---|
@@ -57,6 +60,6 @@ Open `http://localhost:3000`. Run the automatic checks with `npm test`. The [dev
 
 ## Good to know
 
-- **The real questions are not in this repo.** It is public, so the answers would be too. Questions are uploaded on the host page; see [Write the questions](docs/before-the-event.md#write-the-questions).
+- **The real questions are not in this repo.** It is public, so the answers would be too. Questions and their pictures are uploaded on the host page; see [Write the questions](docs/before-the-event.md#write-the-questions).
 - **Every push to `main` goes live** after a restart in Argo CD (ACM's deploy dashboard). Do not push on event day.
 - Built with Node.js, Express and Socket.IO (a library for live two-way messages between the server and browsers). The game is saved to disk after every change, so a restart does not lose it.

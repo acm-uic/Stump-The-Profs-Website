@@ -28,6 +28,8 @@
   --color-paper-2: oklch(90.5% 0.02 268);
   --color-paper-3: oklch(86.5% 0.024 268);
   --color-clay: oklch(96.8% 0.011 268);
+  /* Behind question pictures. Light on every screen, the projector too, because most diagrams are drawn for white paper. */
+  --color-image-mat: oklch(98.5% 0.004 268);
   --color-ink: oklch(24% 0.035 268);
   --color-ink-2: oklch(37% 0.035 268);
   --color-muted: oklch(47% 0.03 268);

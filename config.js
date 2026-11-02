@@ -21,6 +21,9 @@ export const LOCKIN_MAX_LENGTH = 80;
 // Longest answer window a question may set for itself.
 export const MAX_ANSWER_SECONDS = 300;
 
+// Biggest picture the host page may upload for a question (5 MB).
+export const MAX_IMAGE_BYTES = 5_000_000;
+
 // Crowd points for spectators: a right prediction (which side wins the question)
 // and a right answer-along pick on multiple choice and true/false.
 export const CROWD_POINTS = { prediction: 10, pick: 10 };
@@ -46,6 +49,9 @@ export const SAVE_PATH = process.env.SAVE_PATH ?? "data/state.json";
 // Where uploaded questions are kept. data/ is ignored by git and never goes into the
 // container image, so the answers stay off the public repo.
 export const QUESTIONS_PATH = process.env.QUESTIONS_PATH ?? "data/questions.json";
+
+// Where pictures uploaded for questions are kept. Also in data/, for the same reason.
+export const IMAGES_PATH = process.env.IMAGES_PATH ?? "data/images";
 
 // The address shown on the projector. Falls back to this laptop's Wi-Fi address.
 export const PUBLIC_URL = process.env.PUBLIC_URL;

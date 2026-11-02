@@ -8,7 +8,7 @@
 // Nobody says an answer out loud until every answer is sealed, so nobody can copy one.
 // Every action first checks it is allowed in the current phase.
 
-import { pointsFor, lockInPoints, autoCheck, answerSeconds } from "./scoring.js";
+import { pointsFor, lockInPoints, autoCheck, answerSeconds, isMultiAnswer, rightShare, partialPoints } from "./scoring.js";
 import { validateQuestions } from "./store.js";
 import { LOCKIN_MAX_LENGTH, MAX_ADJUST, LATE_GRACE_MS } from "./config.js";
 import { stealOrder } from "./turns.js";
@@ -24,7 +24,7 @@ function freshCurrent() {
   return {
     openedAt: null,       // server time the answers opened
     buzzes: [],           // { teamId, at }: the order teams locked in their answers
-    answers: {},          // teamId -> { answer, correct: true | false | null, awarded }
+    answers: {},          // teamId -> { answer, correct: true | false | null, awarded, partial? }
     attempted: [],        // team ids whose answers have been read out and judged, in order
     activeTeamId: null,   // team whose answer is being read out, waiting for the host
     winnerTeamId: null,
@@ -184,6 +184,13 @@ export function answerDeadline(state) {
 
 // What is wrong with an answer for this question, or null when it is a valid answer.
 function answerProblem(question, answer) {
+  if (isMultiAnswer(question)) {
+    const isChoice = (n) => Number.isInteger(n) && n >= 0 && n < question.choices.length;
+    if (!Array.isArray(answer) || answer.length === 0 || !answer.every(isChoice) || new Set(answer).size !== answer.length) {
+      return "Pick at least one of the choices";
+    }
+    return null;
+  }
   if (question.type === "mc" && !(Number.isInteger(answer) && answer >= 0 && answer < question.choices.length)) {
     return "Pick one of the choices";
   }
@@ -209,9 +216,17 @@ export function buzz(state, teamId, answer, now) {
   const problem = answerProblem(question, answer);
   if (problem) return { ok: false, error: problem };
 
-  const cleanAnswer = typeof answer === "string" ? answer.trim() : answer;
+  const cleanAnswer = typeof answer === "string" ? answer.trim()
+    : Array.isArray(answer) ? [...answer].sort((x, y) => x - y)
+    : answer;
   current.buzzes.push({ teamId, at: now });
   current.answers[teamId] = { answer: cleanAnswer, correct: autoCheck(question, cleanAnswer), awarded: false };
+  // A multiple-answer pick with some of the right choices and no wrong ones: it cannot
+  // win the question, but earns part of the points when the question ends.
+  if (isMultiAnswer(question)) {
+    const share = rightShare(question, cleanAnswer);
+    if (share > 0 && share < 1) current.answers[teamId].partial = share;
+  }
   if (current.buzzes.length === 1) team.stats.buzzesWon += 1;
   team.stats.reactionTimes.push(now - current.openedAt);
 
@@ -277,7 +292,7 @@ export function judge(state, correct) {
     return { ok: true };
   }
 
-  team.stats.wrong += 1;
+  if (!current.answers[team.id].partial) team.stats.wrong += 1; // partly right is not wrong
   if (upNext(state).length === 0) endQuestion(state); // every answer has been read
   return { ok: true };
 }
@@ -318,6 +333,7 @@ function endQuestion(state) {
     attempted: [...state.current.attempted],
     answered: Object.keys(state.current.answers),
     lockInsAwarded: [],
+    partialsAwarded: {}, // teamId -> points, for partly right multiple-answer picks
   });
   settleLockIns(state);
   const winner = state.teams[state.current.winnerTeamId];
@@ -333,6 +349,7 @@ export function markAnswer(state, teamId, correct) {
   const entry = state.current.answers[teamId];
   if (!entry) return { ok: false, error: "That team did not lock in" };
   if (typeof correct !== "boolean") return { ok: false, error: "Mark needs correct: true or false" };
+  if (currentQuestion(state).type !== "free") return { ok: false, error: "Only typed answers are marked by hand" };
   if (teamId === state.current.winnerTeamId) return { ok: false, error: "That team already won the question" };
   entry.correct = correct;
   settleLockIns(state);
@@ -344,7 +361,8 @@ export function markAnswer(state, teamId, correct) {
 // been paid and what has been paid.
 function settleLockIns(state) {
   const current = state.current;
-  const points = lockInPoints(currentQuestion(state));
+  const question = currentQuestion(state);
+  const points = lockInPoints(question);
   for (const [teamId, entry] of Object.entries(current.answers)) {
     const team = state.teams[teamId];
     if (!team) continue;
@@ -358,11 +376,18 @@ function settleLockIns(state) {
       team.stats.lockInHits -= 1;
       entry.awarded = false;
     }
+    // Partly right picks are paid once. They never change: the game checked them itself.
+    if (entry.partial && !entry.partialPaid) {
+      entry.partialPaid = partialPoints(question, entry.partial);
+      team.score += entry.partialPaid;
+    }
   }
   // Keep this question's history record in step (the host may mark answers after the reveal).
   const record = state.history.at(-1);
   if (record && state.phase === "revealed") {
     record.lockInsAwarded = Object.keys(current.answers).filter((id) => current.answers[id].awarded);
+    record.partialsAwarded = Object.fromEntries(Object.entries(current.answers)
+      .filter(([, entry]) => entry.partialPaid).map(([id, entry]) => [id, entry.partialPaid]));
   }
 }
 

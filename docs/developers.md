@@ -38,7 +38,7 @@ Five rules hold the code together. Keep them when you change things.
 
 1. **The server decides; the pages only draw.** A page never works out a score or a phase. It sends what the person did and redraws from the next `state` message.
 2. **Rules are pure functions.** Every function in `game.js` takes the state, changes it, and returns `{ ok: true }` or `{ ok: false, error }`. When it refuses, it changes nothing. Rules know nothing about sockets, browsers or timers, so the tests can call them directly.
-3. **`views.js` is the only gate for secrets.** The answer, sealed answers, accepted spellings and rejoin codes are filtered there. Copy fields into a view by name; never spread a whole question or answer object into one.
+3. **`views.js` is the only gate for secrets.** The answer, sealed answers, accepted spellings and rejoin codes are filtered there. Copy fields into a view by name; never spread a whole question or answer object into one. (Uploaded pictures are the one secret served outside the views: `server.js` hands a picture out only while its question is on screen.)
 4. **Every change ends in `broadcast()`.** It sends each audience its view, then saves the game. There is no other path to the browsers or the disk.
 5. **The server owns time.** Lock-ins are timed with the server's clock. Pages count down from a duration the server sends, so a laptop with a wrong clock still agrees.
 
@@ -65,11 +65,12 @@ The stages of a question, and which key moves each one on:
 | `server.js` | Starts Express and Socket.IO, restores the save, checks the admin key, runs each action, keeps Undo, closes answers when the clock runs out, saves after every broadcast. |
 | `game.js` | All game rules: teams, phases, sealing answers, reading them out, judging, scoring, host fixes, music settings, and upgrading old saves. |
 | `turns.js` | The reading order. Pure, and worked out fresh every time. |
-| `scoring.js` | Points, the quarter share, answer clocks, and automatic answer checks. |
+| `scoring.js` | Points, the quarter share, answer clocks, automatic answer checks, and the partial share for "pick all that apply" questions. |
 | `crowd.js` | The audience: nicknames, predictions, answer-along, crowd scores and the cheer meter. |
 | `views.js` | The public, team and admin views. Secrets stop here. |
-| `store.js` | Checks question files and saves the game safely (write a temporary file, then rename). |
+| `store.js` | Checks question files and saves the game and uploaded pictures safely (write a temporary file, then rename). |
 | `music.js` | Reads and checks YouTube links. |
+| `images.js` | Checks question pictures: safe file names, `https://` links, and that an upload really is a PNG, JPEG, GIF or WebP. |
 | `config.js` | Every number you can tune, plus settings from the environment. |
 | `public/player.*` | The team laptop page. |
 | `public/display.*`, `public/music.js` | The projector and phone page, and the projector's YouTube player. |
@@ -78,12 +79,6 @@ The stages of a question, and which key moves each one on:
 | `public/tokens.css`, `public/style.css` | The clay design: tokens first, then component styles. Colours and fonts only ever come from tokens. |
 | `test/` | Automatic checks, run with `npm test`. |
 | `deploy/iac/` | A copy of the cluster settings that live in the IaC repo. |
-
-### An interactive map of the code
-
-![The code map](images/code-map.png)
-
-The **floorplan** skill draws a clickable map of every file, with a plain description, what it uses, and walkthroughs of the main flows. It is not stored in the repo. To make or refresh it, install the [floorplan skill](https://github.com/haydenschmitty/floorplan) in Claude Code and ask "make a floorplan of this repo" (or "update the floorplan"). It opens at `http://127.0.0.1:4378`.
 
 ## Messages between pages and the server
 
@@ -100,6 +95,27 @@ The **floorplan** skill draws a clickable map of every file, with a plain descri
 | `state` | Server | The view for that screen, sent after every change. |
 | `cheer`, `crowd:me` | Server | The cheer meter (every 250 ms) and each phone's own crowd score. |
 | `team:kicked`, `game:reset` | Server | Tell pages to forget their team or crowd identity. |
+
+## Web requests
+
+Three things use ordinary web requests instead of Socket.IO:
+
+| Request | What it does |
+|---|---|
+| `GET /healthz` | Says `ok`. Kubernetes uses it to check the server is alive. |
+| `POST /admin/images/<name>` | The host page uploads one picture. Needs the admin key in an `x-admin-key` header, checked before the body is read. Up to 5 MB. Socket.IO is not used because its messages are capped at 1 MB. |
+| `GET /question-image/<number>/<name>` | One uploaded picture, but only while question `<number>` is on screen and uses that picture. Anything else gets 404, so nobody can peek at later pictures by guessing names. |
+
+Pictures are saved in `data/images/` (set by `IMAGES_PATH`), next to the questions, on the cluster's disk volume.
+
+## Two kinds of multiple choice
+
+A multiple choice question's `answer` is either one choice number or a list of them.
+
+- **One number:** teams pick one choice. Right or wrong.
+- **A list ("pick all that apply"):** teams lock in a sorted list of choices. `rightShare()` in `scoring.js` gives the share of the right choices found, or 0 if any picked choice is wrong. A share of 1 is a normal right answer. Between 0 and 1 is **partly right**: `buzz()` stores it as `partial` on the sealed answer. It is read out like a wrong answer (the question goes on) but does not count as wrong in the stats. When the question ends, `settleLockIns()` pays `partialPoints()`: the "also right" points times the share.
+
+Views send `question.multiple: true` so the pages allow several picks; they never say which choices are right before the reveal. The crowd still picks one choice; any right one scores.
 
 ## Run it on your computer
 
@@ -149,4 +165,6 @@ Run `npm test` before every push. All tests should pass.
 - **Old saves:** the live server may hold a game saved by an older version. `upgradeState()` in `game.js` converts it on start-up; extend it when you change the state's shape.
 - **The `hidden` attribute:** `style.css` forces `[hidden] { display: none }`, because a `display: flex` rule would otherwise show hidden elements.
 - **Sound on the projector:** browsers block sound until someone clicks the page once. That is expected.
+- **Never allow SVG pictures.** An SVG can hold a script. Served from this site, it could read the admin key that the host page keeps in the browser. `images.js` checks the first bytes of every upload, so a renamed file is refused too.
+- **Pictures are not in Export backup.** They are files on the volume, not part of the game state.
 - **Diagrams in this guide** were made with the archify skill and checked against the code at the time. If you change how buzzing or reading works, update them or remove them.

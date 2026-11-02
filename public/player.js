@@ -1,6 +1,6 @@
 import {
   connect, PHASE_LABELS, SIDE_NAMES, TYPE_LABELS, renderQuestion, startCountdown, formatMs, ordinal,
-  choiceText, choiceOptions,
+  choiceText, choiceOptions, isRightChoice,
 } from "/common.js";
 
 const socket = connect();
@@ -91,11 +91,16 @@ let selection = { questionNumber: null, value: null };
 let deadline = null; // performance.now() when the answer clock runs out here
 let redrawTimer = null;
 
-const hasSelection = () => selection.value !== null && selection.value !== "";
+const hasSelection = () => selection.value !== null && selection.value !== "" && !(Array.isArray(selection.value) && selection.value.length === 0);
 const timeLeft = () => (deadline === null ? 0 : deadline - performance.now());
 
+// Picks a choice. On a "pick all that apply" question, a choice toggles in and out of a list instead.
 function select(value) {
   if (!lastView || !["preview", "open"].includes(lastView.phase) || lastView.myAnswer) return;
+  if (lastView.question.multiple) {
+    const picked = Array.isArray(selection.value) && selection.questionNumber === lastView.questionNumber ? selection.value : [];
+    value = picked.includes(value) ? picked.filter((v) => v !== value) : [...picked, value].sort((x, y) => x - y);
+  }
   selection = { questionNumber: lastView.questionNumber, value };
   $("#buzz-error").textContent = "";
   draw(lastView);
@@ -117,7 +122,7 @@ $("#pad-text").addEventListener("keydown", (event) => {
   if (event.key === "Enter") sendBuzz();
 });
 
-// Space buzzes. A to F pick a choice, T and F pick true or false.
+// Space buzzes. A to F pick a choice (or toggle it, on "pick all that apply"), T and F pick true or false.
 document.addEventListener("keydown", (event) => {
   if (event.target.tagName === "INPUT" || event.metaKey || event.ctrlKey || event.altKey) return;
   if (event.code === "Space") {
@@ -157,12 +162,14 @@ function drawPad(view) {
   buildPad(view);
   const canPick = ["preview", "open"].includes(view.phase) && !view.myAnswer;
   const mine = view.myAnswer ? view.myAnswer.answer : selection.value;
+  const isMine = (value) => (Array.isArray(mine) ? mine.includes(value) : mine === value);
   for (const button of $("#pad-choices").children) {
     const value = JSON.parse(button.dataset.value);
     button.disabled = !canPick;
-    button.classList.toggle("chosen", mine === value);
-    button.classList.toggle("sealed", Boolean(view.myAnswer) && mine === value);
-    button.classList.toggle("correct", "answer" in q && q.answer === value);
+    button.setAttribute("aria-pressed", String(isMine(value)));
+    button.classList.toggle("chosen", isMine(value));
+    button.classList.toggle("sealed", Boolean(view.myAnswer) && isMine(value));
+    button.classList.toggle("correct", isRightChoice(q, value));
   }
   const text = $("#pad-text");
   text.hidden = q.type !== "free";
@@ -179,12 +186,15 @@ function buzzerLabel(view) {
       if (timeLeft() <= 0) return ["TIME", "The answer clock ran out"];
       return hasSelection()
         ? ["BUZZ", `Locks in ${choiceText(view.question, selection.value)}`]
-        : ["PICK", view.question.type === "free" ? "Type your answer above, then buzz" : "Choose an answer above, then buzz"];
+        : ["PICK", view.question.type === "free" ? "Type your answer above, then buzz"
+          : view.question.multiple ? "Choose every answer you think is right, then buzz"
+          : "Choose an answer above, then buzz"];
     case "buzzed": return ["LOCKED IN", view.phase === "open"
       ? `${mine}. You were ${ordinal(view.place)} to buzz. Answers are read when time is up.`
       : `${mine}. ${view.place === 1 ? "Yours is read next." : `Yours is read ${ordinal(view.place)}.`}`];
     case "floor": return ["YOUR TURN", `Read it out: ${mine}`];
     case "tried": return ["WRONG", `${mine} was not it`];
+    case "partial": return ["PARTLY RIGHT", `${mine}: some of the right answers. Points come when the question ends.`];
     case "missed": return ["NO ANSWER", "Time ran out before you locked in"];
     case "over": return ["DONE", resultLine(view)];
     default: return ["", ""];
@@ -196,6 +206,7 @@ function resultLine(view) {
   if (!result) return "";
   if (result.winner?.id === me.id) return `Correct! +${result.points}`;
   if (myAnswer?.awarded) return `Also right! +${view.lockInPoints}`;
+  if (myAnswer?.partialPoints) return `Partly right! +${myAnswer.partialPoints}`;
   if (myAnswer && myAnswer.correct == null) return "The host will mark your answer";
   return result.winner ? `${result.winner.name} got it` : "Nobody got it";
 }

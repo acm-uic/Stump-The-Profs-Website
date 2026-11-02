@@ -3,6 +3,7 @@
 // whatever it needs to know (the phase, the question) is passed in.
 
 import { CROWD_POINTS, CHEER_DECAY } from "./config.js";
+import { isRightChoice } from "./scoring.js";
 
 const PREDICTIONS = ["student", "prof", "none"];
 const MAX_NICKNAME = 20;
@@ -83,7 +84,7 @@ export function settleQuestion(crowd, { winnerSide, question }) {
   }
   const rightPickers = [];
   for (const [id, choice] of Object.entries(crowd.picks)) {
-    if (choice === question.answer && crowd.spectators[id]) {
+    if (isRightChoice(question, choice) && crowd.spectators[id]) {
       crowd.spectators[id].score += CROWD_POINTS.pick;
       rightPickers.push(id);
     }

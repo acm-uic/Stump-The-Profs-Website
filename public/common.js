@@ -27,8 +27,10 @@ export function formatMs(ms) {
   return ms < 1000 ? `${ms} ms` : `${(ms / 1000).toFixed(1)} s`;
 }
 
-// Any answer to a question as text, e.g. "B. Merge sort", "False" or a typed answer.
+// Any answer to a question as text, e.g. "B. Merge sort", "A. Merge, C. Insertion",
+// "False" or a typed answer.
 export function choiceText(question, answer) {
+  if (question?.type === "mc" && Array.isArray(answer)) return answer.map((i) => choiceText(question, i)).join(", ");
   if (question?.type === "mc") return `${letter(answer)}. ${question.choices[answer]}`;
   if (question?.type === "tf") return answer ? "True" : "False";
   return String(answer);
@@ -38,6 +40,12 @@ export function choiceText(question, answer) {
 export function answerText(question) {
   if (!question || !("answer" in question)) return "";
   return choiceText(question, question.answer);
+}
+
+// Is this choice one of the right ones? false when this page has not been sent the answer.
+export function isRightChoice(question, value) {
+  if (!question || !("answer" in question)) return false;
+  return Array.isArray(question.answer) ? question.answer.includes(value) : question.answer === value;
 }
 
 // "3 of 6 teams locked in"
@@ -82,14 +90,17 @@ export function upNextText(view) {
 export function renderReadOut(listEl, view) {
   listEl.replaceChildren(...view.readOut.map((entry) => {
     const li = document.createElement("li");
-    li.className = entry.correct === true ? "right" : entry.correct === false ? "wrong" : "pending";
+    li.className = entry.correct === true ? "right" : entry.partial ? "partial" : entry.correct === false ? "wrong" : "pending";
     const name = document.createElement("strong");
     name.textContent = entry.team.name;
     const answer = document.createElement("span");
     answer.textContent = choiceText(view.question, entry.answer);
     const ruling = document.createElement("span");
     ruling.className = "ruling";
-    ruling.textContent = entry.correct === true ? "Correct" : entry.correct === false ? "Wrong" : "Host is deciding";
+    ruling.textContent = entry.correct === true ? "Correct"
+      : entry.partial ? "Partly right"
+      : entry.correct === false ? "Wrong"
+      : "Host is deciding";
     li.append(name, answer, ruling);
     return li;
   }));
@@ -116,15 +127,17 @@ export function renderTeamList(listEl, teams, emptyText = "No teams yet") {
   }
 }
 
-// Draws the question: category, points, prompt and (for mc/tf) the choices, unless
-// the page draws its own. When the answer is included (after the reveal, or on the
-// admin page), it is highlighted.
+// Draws the question: category, points, prompt, picture and (for mc/tf) the choices,
+// unless the page draws its own. When the answer is included (after the reveal, or on
+// the admin page), it is highlighted.
 export function renderQuestion(el, question, { choices = true } = {}) {
+  const oldPicture = el.querySelector(".question-image");
   el.replaceChildren();
   if (!question) return;
   const meta = document.createElement("p");
   meta.className = "meta";
-  for (const text of [question.category, TYPE_LABELS[question.type], `${question.points} pts`].filter(Boolean)) {
+  const labels = [question.category, TYPE_LABELS[question.type], question.multiple && "Pick all that apply", `${question.points} pts`];
+  for (const text of labels.filter(Boolean)) {
     const chip = document.createElement("span");
     chip.textContent = text;
     meta.append(chip);
@@ -133,6 +146,7 @@ export function renderQuestion(el, question, { choices = true } = {}) {
   prompt.className = "prompt";
   prompt.textContent = question.prompt;
   el.append(meta, prompt);
+  if (question.image) el.append(questionPicture(question.image, oldPicture));
 
   const options = choices ? choiceOptions(question) : [];
   if (options.length) {
@@ -141,11 +155,24 @@ export function renderQuestion(el, question, { choices = true } = {}) {
     for (const [text, value] of options) {
       const li = document.createElement("li");
       li.textContent = text;
-      if ("answer" in question && question.answer === value) li.className = "correct";
+      if (isRightChoice(question, value)) li.className = "correct";
       ul.append(li);
     }
     el.append(ul);
   }
+}
+
+// The question's picture. The state arrives many times a second, so the picture already
+// on screen is kept rather than loaded again, which would make it flicker. One that
+// failed is tried again, in case the host has just uploaded it.
+function questionPicture({ src, alt }, oldPicture) {
+  if (oldPicture?.getAttribute("src") === src && !oldPicture.hidden) return oldPicture;
+  const img = document.createElement("img");
+  img.className = "question-image";
+  img.alt = alt;
+  img.src = src;
+  img.addEventListener("error", () => { img.hidden = true; }); // a missing picture leaves no broken icon
+  return img;
 }
 
 // The choices a team or spectator can pick, as [text, value] pairs. Empty for free response.

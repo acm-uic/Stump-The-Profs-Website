@@ -8,11 +8,14 @@ import { Server } from "socket.io";
 import {
   createGame, registerTeam, rejoinTeam, showQuestion, openBuzzers, buzz, closeAnswers, nextAnswer, judge, reveal,
   markAnswer, adjustScore, kickTeam, toggleRegistration, replaceQuestions, setMusic, upgradeState, answerDeadline,
+  currentQuestion,
 } from "./game.js";
-import { loadQuestions, saveQuestions, saveState, loadState } from "./store.js";
+import { loadQuestions, saveQuestions, saveState, loadState, saveImage, listImages } from "./store.js";
+import { isImageName, imageProblem } from "./images.js";
 import { joinCrowd, rejoinCrowd, predict, pick, meView, createMeter, cheer, decayCheer } from "./crowd.js";
 import {
-  CHEER_TICK_MS, CHEER_MIN_GAP_MS, PORT, ADMIN_KEY, SAVE_PATH, QUESTIONS_PATH, PUBLIC_URL, UNDO_LIMIT, LATE_GRACE_MS,
+  CHEER_TICK_MS, CHEER_MIN_GAP_MS, PORT, ADMIN_KEY, SAVE_PATH, QUESTIONS_PATH, IMAGES_PATH, PUBLIC_URL, UNDO_LIMIT,
+  LATE_GRACE_MS, MAX_IMAGE_BYTES,
 } from "./config.js";
 import { publicView, teamView, adminView } from "./views.js";
 
@@ -26,6 +29,7 @@ if (!ADMIN_KEY) {
 
 const savePath = path.resolve(import.meta.dirname, SAVE_PATH);
 const questionsPath = path.resolve(import.meta.dirname, QUESTIONS_PATH);
+const imagesPath = path.resolve(import.meta.dirname, IMAGES_PATH);
 
 function lanAddresses() {
   return Object.values(os.networkInterfaces())
@@ -64,6 +68,10 @@ if (state) {
 // only: it is for mis-clicks, not for restarts.
 const undoStack = [];
 
+// The pictures uploaded so far, so the host page can warn about a question whose
+// picture is missing. Read from disk once, then kept up to date by each upload.
+const uploadedImages = new Set(listImages(imagesPath));
+
 // ---- Web server and sockets ----
 
 const app = express();
@@ -75,6 +83,39 @@ app.get("/healthz", (_req, res) => {
 
 app.use(express.static(path.join(import.meta.dirname, "public")));
 
+// A question's uploaded picture, only while that question is on screen. The pictures
+// for later questions stay hidden, even to someone guessing their names.
+app.get("/question-image/:number/:name", (req, res) => {
+  const question = currentQuestion(state);
+  const onScreen = question && isImageName(question.image) && question.image === req.params.name
+    && Number(req.params.number) === state.questionIndex + 1;
+  if (!onScreen) return res.sendStatus(404);
+  res.sendFile(question.image, { root: imagesPath, maxAge: 60_000 }, (error) => {
+    if (error && !res.headersSent) res.sendStatus(404); // listed in questions.json but not uploaded yet
+  });
+});
+
+// The host page uploads pictures with an ordinary web request, not a socket message:
+// a picture can be a few MB, and socket messages are capped at 1 MB. The key is checked
+// before the picture is read, so nobody else can make the server read large uploads.
+function requireAdminKey(req, res, next) {
+  if (!isAdminKey(req.get("x-admin-key"))) return res.status(403).json({ ok: false, error: "Wrong admin key: sign in again" });
+  next();
+}
+app.post("/admin/images/:name", requireAdminKey, express.raw({ type: () => true, limit: MAX_IMAGE_BYTES }), (req, res) => {
+  const { name } = req.params;
+  const problem = imageProblem(name, req.body);
+  if (problem) return res.status(400).json({ ok: false, error: problem });
+  saveImage(req.body, path.join(imagesPath, name));
+  uploadedImages.add(name);
+  res.json({ ok: true });
+  broadcast(); // the host page's question list stops warning about this picture
+});
+app.use((error, _req, res, next) => {
+  if (error.type !== "entity.too.large") return next(error);
+  res.status(413).json({ ok: false, error: `Pictures can be at most ${MAX_IMAGE_BYTES / 1_000_000} MB` });
+});
+
 const httpServer = createServer(app);
 const io = new Server(httpServer);
 
@@ -83,7 +124,7 @@ const io = new Server(httpServer);
 function broadcast() {
   const now = Date.now();
   io.to("display").emit("state", displayView(now));
-  io.to("admin").emit("state", { ...adminView(state, now), undoCount: undoStack.length });
+  io.to("admin").emit("state", adminState(now));
   for (const teamId of Object.keys(state.teams)) {
     io.to(`team:${teamId}`).emit("state", teamView(state, teamId, now));
   }
@@ -138,6 +179,12 @@ setInterval(() => {
     io.to("display").emit("cheer", payload);
   }
 }, CHEER_TICK_MS);
+
+// The host gets the admin view plus what only the server knows: how many steps Undo
+// has and which pictures are uploaded.
+function adminState(now) {
+  return { ...adminView(state, now), undoCount: undoStack.length, uploadedImages: [...uploadedImages] };
+}
 
 // The projector and spectators get the public view plus the address to join.
 function displayView(now) {
@@ -225,7 +272,7 @@ io.on("connection", (socket) => {
     socket.join("admin");
     socket.data.isAdmin = true;
     reply(callback, { ok: true });
-    socket.emit("state", { ...adminView(state, Date.now()), undoCount: undoStack.length });
+    socket.emit("state", adminState(Date.now()));
   });
 
   socket.on("admin:action", (action, callback) => {

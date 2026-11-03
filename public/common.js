@@ -9,6 +9,7 @@ export const PHASE_LABELS = {
   open: "BUZZ!",
   judging: "Reading answers",
   revealed: "Answer",
+  final: "Final results",
 };
 
 export const TYPE_LABELS = { free: "Free response", mc: "Multiple choice", tf: "True / False" };

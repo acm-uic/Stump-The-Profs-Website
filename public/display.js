@@ -1,6 +1,6 @@
 import {
   connect, PHASE_LABELS, answerText, renderQuestion, renderTeamList, startCountdown, upNextText, formatMs,
-  letter, ordinal, choiceText, lockedInText, renderReadOut,
+  letter, ordinal, choiceText, lockedInText, renderReadOut, SIDE_NAMES,
 } from "/common.js";
 import { startMusic } from "/music.js";
 
@@ -138,7 +138,7 @@ function buildPickButtons(view) {
 function renderCrowdPanel() {
   if (isProjector || !lastView || !me) return;
   const view = lastView;
-  $("#crowd-me").textContent = `${me.name}: ${me.score} pts, ${ordinal(me.rank)} of ${me.rankOf}`;
+  $("#crowd-me").textContent = `Playing as ${me.name}`;
 
   const hasQuestion = Boolean(view.question);
   $("#predict-box").hidden = !hasQuestion;
@@ -198,17 +198,6 @@ function renderCrowdBoard(view) {
   $("#pred-n-label").textContent = counts.none ? `Nobody ${counts.none}` : "";
   $("#pred-p-label").textContent = `Profs ${counts.prof}`;
 
-  $("#crowd-top-title").hidden = crowd.top.length === 0;
-  $("#crowd-top").replaceChildren(...crowd.top.map((s) => {
-    const li = document.createElement("li");
-    const name = document.createElement("span");
-    name.textContent = s.name; // textContent: nicknames go on the projector
-    const score = document.createElement("strong");
-    score.textContent = s.score;
-    li.append(name, score);
-    return li;
-  }));
-
   // After the reveal, show how the crowd answered next to each choice.
   if (crowd.pickSplit) {
     const items = document.querySelectorAll("#question .choices li");
@@ -221,17 +210,62 @@ function renderCrowdBoard(view) {
   }
 }
 
+// The end of the night: the winning side, every team ranked, and the awards.
+const AWARD_UNITS = {
+  ms: (value) => formatMs(value),
+  times: (value) => `${value} time${value === 1 ? "" : "s"}`,
+  steals: (value) => `${value} steal${value === 1 ? "" : "s"}`,
+};
+function renderFinal(view) {
+  const { final } = view;
+  $("#final").hidden = !final;
+  if (!final) return;
+  $("#final-winner").textContent = final.winnerSide ? `${SIDE_NAMES[final.winnerSide]} win!` : "It's a tie!";
+  $("#final-winner").dataset.side = final.winnerSide ?? "";
+  $("#standings").replaceChildren(...final.standings.map((team) => {
+    const li = document.createElement("li");
+    if (team.rank <= 3) li.className = `podium p${team.rank}`;
+    const rank = document.createElement("span");
+    rank.className = "rank";
+    rank.textContent = ordinal(team.rank);
+    const name = document.createElement("span");
+    name.className = "name";
+    name.textContent = team.name; // textContent: team names are typed by players
+    const side = document.createElement("span");
+    side.className = "side-chip";
+    side.dataset.side = team.side;
+    side.textContent = SIDE_NAMES[team.side];
+    const score = document.createElement("strong");
+    score.textContent = team.score.toLocaleString();
+    li.append(rank, name, side, score);
+    return li;
+  }));
+  $("#awards").replaceChildren(...final.awards.map((award) => {
+    const li = document.createElement("li");
+    const title = document.createElement("span");
+    title.className = "award-title";
+    title.textContent = award.title;
+    const who = document.createElement("strong");
+    who.textContent = award.teams.map((t) => t.name).join(", ");
+    const detail = document.createElement("span");
+    detail.textContent = AWARD_UNITS[award.unit](award.value);
+    li.append(title, who, detail);
+    return li;
+  }));
+}
+
 // Redraw everything from the server's view every time.
 socket.on("state", (view) => {
   lastView = view;
   $("#phase").textContent = PHASE_LABELS[view.phase];
   $("#phase").className = `phase ${view.phase}`;
-  $("#progress").textContent = view.questionNumber > 0 ? `Question ${view.questionNumber} of ${view.questionTotal}` : "";
+  $("#progress").textContent = view.questionNumber > 0 && !view.final ? `Question ${view.questionNumber} of ${view.questionTotal}` : "";
   const url = document.createElement("strong");
   url.textContent = view.joinUrl.replace(/^https?:\/\//, "");
   $("#join").replaceChildren("Join: ", url);
 
-  $("#waiting").hidden = Boolean(view.question);
+  $("#waiting").hidden = Boolean(view.question || view.final);
+  renderFinal(view);
   renderQuestion($("#question"), view.question);
   renderResult(view);
 

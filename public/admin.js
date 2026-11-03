@@ -59,6 +59,7 @@ $("#next").addEventListener("click", () => send({ type: "next" }));
 $("#correct").addEventListener("click", () => send({ type: "judge", correct: true }));
 $("#wrong").addEventListener("click", () => send({ type: "judge", correct: false }));
 $("#reveal").addEventListener("click", () => send({ type: "reveal" }));
+$("#results").addEventListener("click", () => send({ type: "results" }));
 $("#undo").addEventListener("click", () => send({ type: "undo" }));
 $("#registration").addEventListener("click", () => send({ type: "toggleRegistration" }));
 $("#reset").addEventListener("click", () => {
@@ -129,7 +130,7 @@ $("#upload-images").addEventListener("change", async () => {
 
 // Keyboard shortcuts for the host. Clicking a disabled button does nothing, and the
 // server checks the phase anyway, so a double press cannot judge twice.
-const SHORTCUTS = { n: "#show", o: "#open", a: "#next", c: "#correct", w: "#wrong", r: "#reveal", z: "#undo" };
+const SHORTCUTS = { n: "#show", o: "#open", a: "#next", c: "#correct", w: "#wrong", r: "#reveal", f: "#results", z: "#undo" };
 document.addEventListener("keydown", (event) => {
   if (event.target.tagName === "INPUT" || event.metaKey || event.ctrlKey || event.altKey || event.repeat) return;
   const button = $(SHORTCUTS[event.key.toLowerCase()] ?? "#none");
@@ -232,8 +233,8 @@ socket.on("state", (view) => {
   $("#up-next").textContent = phase === "judging"
     ? upNextText(view) || "This is the last answer: Wrong ends the question"
     : "";
-  $("#result").textContent = view.result
-    ? view.result.winner ? `${view.result.winner.name} got it: +${view.result.points}` : "Nobody got it"
+  $("#result").textContent = phase === "final" ? "Every screen is showing the final results. Press Z to go back."
+    : view.result ? view.result.winner ? `${view.result.winner.name} got it: +${view.result.points}` : "Nobody got it"
     : "";
 
   const isLast = view.questionNumber >= view.questionTotal;
@@ -243,6 +244,9 @@ socket.on("state", (view) => {
   $("#correct").disabled = !view.waitingOn;
   $("#wrong").disabled = !view.waitingOn;
   $("#reveal").disabled = !(phase === "open" || phase === "judging");
+  // Allowed after any reveal (to end early); highlighted once the last question is done.
+  $("#results").disabled = phase !== "revealed";
+  $("#results").classList.toggle("suggested", phase === "revealed" && isLast);
   $("#undo").disabled = view.undoCount === 0;
   $("#undo").firstChild.textContent = view.undoCount ? `Undo (${view.undoCount})` : "Undo";
   $("#registration").textContent = view.registrationOpen ? "Close registration" : "Reopen registration";

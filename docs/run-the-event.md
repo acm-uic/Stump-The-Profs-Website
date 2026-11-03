@@ -62,6 +62,7 @@ The host does everything with single keys. You can also click the buttons.
 | **C** | Correct | The answer being read is right. |
 | **W** | Wrong | The answer being read is wrong. |
 | **R** | Reveal answer | Ends the question now and shows the answer. |
+| **F** | Show final results | Ends the game and shows the final results on every screen. Works after any answer is shown; it turns green after the last question. |
 | **Z** | Undo | Takes back your last host action. |
 
 ![The stages of one question](images/question-stages.png)
@@ -106,6 +107,14 @@ The diagram shows each stage of a question and the key that moves it on. ([Open 
 
 7. **Free response only:** answers that were never read out may still be right. In the **Sealed answers** list, click **Right** or **Wrong** next to each one marked "Needs marking". Clicking again is safe.
 8. **Press N** for the next question.
+
+### The end of the game
+
+After the last question's answer is shown, **Show final results** turns green. **Press F.** Every screen switches to the final results: the winning side, every player ranked by score, and three awards (fastest buzz, most often first to buzz, most steals). Player laptops say where each player finished.
+
+![The final results on the projector](images/projector-results.png)
+
+You can press **F** after any question to end early. If you pressed it by mistake, press **Z** (Undo) to go back to the question. Mark any free-response answers that still say "Needs marking" **before** pressing F; marking is not possible on the results screen.
 
 ## Scoring
 
@@ -152,9 +161,10 @@ Before the first question, the host can read this out:
 
 ## After the event
 
-1. Click **Export backup** on the host page. Keep the file; it has every team, score and answer history.
-2. Pause the music.
-3. **Do not change the code on event day.** The live site always runs the newest version of the code, so a change could appear in the middle of the game.
+1. Leave the final results on the projector (press **F** if you have not).
+2. Click **Export backup** on the host page. Keep the file; it has every team, score and answer history.
+3. Pause the music.
+4. **Do not change the code on event day.** The live site always runs the newest version of the code, so a change could appear in the middle of the game.
 
 ## One-page reference
 
@@ -165,5 +175,6 @@ Before the first question, the host can read this out:
 | **A** | Read next answer |
 | **C** / **W** | Correct / Wrong (free response) |
 | **R** | Reveal the answer now |
+| **F** | Final results (after the last question) |
 | **Z** | Undo |
 | **F** (on the projector) | Full screen |

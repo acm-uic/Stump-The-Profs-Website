@@ -68,6 +68,7 @@ flowchart TD
 | **WRONG** | Grey, pressed in | Your answer was read and it was not right. |
 | **PARTLY RIGHT** | Grey, pressed in | Pick all that apply: you found some of the right answers and no wrong ones. Other teams are still read. Your points are added when the question ends. |
 | **NO ANSWER** | Grey, pressed in | You did not lock in before answers closed. |
+| **FINISHED** | Green | The host ended the game. It says where you finished and which side won. |
 | **DONE** | Green | The question is over. It says how you did: "Correct!", "Also right!", "Partly right!", who got it, or "The host will mark your answer" (free response). |
 
 ### Keyboard shortcuts
@@ -95,16 +96,19 @@ Anyone can play along on a phone. Open the home page, tap **Display**, type a ni
 
 For every question:
 
-1. **Predict who gets it** when the question appears: **Students**, **Profs** or **Nobody**. You can change your mind until answers open. Right predictions score 10 points.
-2. **Answer along** while the teams are answering (multiple choice and true/false only). Tap one answer. You cannot change it. On **Pick all that apply** questions you still tap one; any of the right answers counts. It closes when the teams' answers close. Right answers score 10 points.
+1. **Predict who gets it** when the question appears: **Students**, **Profs** or **Nobody**. You can change your mind until answers open.
+2. **Answer along** while the teams are answering (multiple choice and true/false only). Tap one answer. You cannot change it. On **Pick all that apply** questions you still tap one; any of the right answers counts. It closes when the teams' answers close.
 3. **Watch the answers** being read out on the projector or your phone.
 4. **See how you did.** After the answer is shown, the box says "Prediction right!", "Answer right!" or that you missed.
 
 At any time:
 
 - **Cheer** with the **Go Students!** and **Go Profs!** buttons. The cheer meter on the projector shows which side is loudest right now; it fades when people stop.
-- **Your score and rank** among the crowd are at the top of the **Play along** box. The top 5 show on the projector.
+
+Playing along is just for fun: the phone tells you whether you were right, but the audience does not score points. Only the players compete.
 
 The phone remembers you. If the page closes, open it again and you are back in. If the host resets the game, everyone joins again.
+
+At the end, the host shows the **final results** on every screen, including your phone: the winning side, every player ranked by score, and awards for the fastest buzz, most often first to buzz, and most steals.
 
 Questions during the game? Ask one of the hosts.

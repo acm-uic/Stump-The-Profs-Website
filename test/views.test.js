@@ -1,6 +1,6 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { createGame, registerTeam, showQuestion, openBuzzers, buzz, closeAnswers, nextAnswer, setMusic } from "../game.js";
+import { createGame, registerTeam, showQuestion, openBuzzers, buzz, closeAnswers, nextAnswer, setMusic, reveal, showResults } from "../game.js";
 import { publicView, teamView, adminView, rankOf, buzzerState, teamStats } from "../views.js";
 
 function playing() {
@@ -162,7 +162,7 @@ test("the team view has exactly the agreed fields, and a history line per finish
 
   const view = teamView(state, b.id, 3000);
   assert.deepEqual(Object.keys(view).sort(), [
-    "answerCount", "answerRemainingMs", "answerTotalMs", "answersOpen", "buzzer", "buzzes", "canAnswer", "crowd", "floorTeam",
+    "answerCount", "answerRemainingMs", "answerTotalMs", "answersOpen", "buzzer", "buzzes", "canAnswer", "crowd", "final", "floorTeam",
     "history", "lockInPoints", "me", "music", "myAnswer", "phase", "place", "question",
     "questionNumber", "questionTotal", "readOut", "result", "sides", "stats", "teams", "upNext",
   ]);
@@ -175,4 +175,45 @@ test("the team view has exactly the agreed fields, and a history line per finish
   assert.equal(view.me.rankOf, 2);
   assert.deepEqual(view.sides, { student: 200, prof: 150 });
   assert.equal(teamView(state, a.id, 3000).history[1].result, "Wrong");
+});
+
+test("final results: the winning side, every team ranked, and awards", () => {
+  const state = createGame([{ id: "q1", type: "mc", prompt: "?", choices: ["x", "y"], answer: 0 }]);
+  const a = registerTeam(state, { name: "A", side: "student" }).team;
+  const b = registerTeam(state, { name: "B", side: "prof" }).team;
+  const c = registerTeam(state, { name: "C", side: "prof" }).team;
+  assert.equal(showResults(state).ok, false); // not before a reveal
+  showQuestion(state);
+  openBuzzers(state, 1000);
+  buzz(state, b.id, 1, 1200); // wrong, but fastest
+  buzz(state, a.id, 0, 1300);
+  buzz(state, c.id, 0, 1400);
+  nextAnswer(state); // B wrong
+  nextAnswer(state); // A steals 200; C also right 50
+  assert.equal(publicView(state, 2000).final, null);
+  assert.equal(showResults(state).ok, true);
+
+  const view = publicView(state, 2000);
+  assert.equal(view.question, null);
+  assert.equal(view.final.winnerSide, "student"); // 200 against 50
+  assert.deepEqual(view.final.standings.map((t) => [t.name, t.score, t.rank]), [["A", 200, 1], ["C", 50, 2], ["B", 0, 3]]);
+  assert.deepEqual(view.final.awards.map((w) => [w.title, w.teams.map((t) => t.name), w.value]), [
+    ["Fastest buzz", ["B"], 200],
+    ["Most often first to buzz", ["B"], 1],
+    ["Most steals", ["A"], 1],
+  ]);
+  assert.equal(teamView(state, a.id, 2000).buzzer, "final");
+  assert.equal(showQuestion(state).ok, false); // Undo is the way back
+});
+
+test("final results: equal side totals are a tie", () => {
+  const state = createGame([{ id: "q1", type: "tf", prompt: "?", answer: true }]);
+  registerTeam(state, { name: "A", side: "student" });
+  registerTeam(state, { name: "B", side: "prof" });
+  showQuestion(state);
+  openBuzzers(state, 0);
+  reveal(state);
+  showResults(state);
+  assert.equal(publicView(state, 0).final.winnerSide, null);
+  assert.deepEqual(publicView(state, 0).final.awards, []);
 });

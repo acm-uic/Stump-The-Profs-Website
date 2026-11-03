@@ -8,7 +8,7 @@ This guide is for developers who want to change the game: fix a bug, add a featu
 - **Server-authoritative:** the server decides everything. The pages only draw what the server sends and report what the person did.
 - **State:** the one object that holds the whole game: teams, scores, the current question, sealed answers, the crowd and the music settings.
 - **View:** the part of the state one kind of screen is allowed to see. The team view, the public view and the admin view are different.
-- **Phase:** where the current question is: `lobby`, `preview`, `open`, `judging` or `revealed`.
+- **Phase:** where the game is: `lobby`, `preview`, `open`, `judging`, `revealed`, or `final` (the results screen at the end).
 - **Broadcast:** sending every screen its own view after a change.
 
 ## The big picture
@@ -66,8 +66,8 @@ The stages of a question, and which key moves each one on:
 | `game.js` | All game rules: teams, phases, sealing answers, reading them out, judging, scoring, host fixes, music settings, and upgrading old saves. |
 | `turns.js` | The reading order. Pure, and worked out fresh every time. |
 | `scoring.js` | Points, the quarter share, answer clocks, automatic answer checks, and the partial share for "pick all that apply" questions. |
-| `crowd.js` | The audience: nicknames, predictions, answer-along, crowd scores and the cheer meter. |
-| `views.js` | The public, team and admin views. Secrets stop here. |
+| `crowd.js` | The audience: nicknames, predictions, answer-along and the cheer meter. Nothing is scored; phones are only told whether they were right. |
+| `views.js` | The public, team and admin views, and the final results (standings and awards). Secrets stop here. |
 | `store.js` | Checks question files and saves the game and uploaded pictures safely (write a temporary file, then rename). |
 | `music.js` | Reads and checks YouTube links. |
 | `images.js` | Checks question pictures: safe file names, `https://` links, and that an upload really is a PNG, JPEG, GIF or WebP. |
@@ -91,9 +91,9 @@ The stages of a question, and which key moves each one on:
 | `crowd:join`, `crowd:predict`, `crowd:pick`, `crowd:cheer` | Phones | Crowd play. Cheers are limited to one every 150 ms. |
 | `music:status` | Projector | Tells the host page a video could not play. |
 | `admin:auth` | Host page | Prove the admin key. |
-| `admin:action` | Host page | `show`, `open`, `close`, `next`, `judge`, `reveal`, `markAnswer`, `adjust`, `kick`, `toggleRegistration`, `loadQuestions`, `reset`, `undo`, `export` and `music`. |
+| `admin:action` | Host page | `show`, `open`, `close`, `next`, `judge`, `reveal`, `results`, `markAnswer`, `adjust`, `kick`, `toggleRegistration`, `loadQuestions`, `reset`, `undo`, `export` and `music`. |
 | `state` | Server | The view for that screen, sent after every change. |
-| `cheer`, `crowd:me` | Server | The cheer meter (every 250 ms) and each phone's own crowd score. |
+| `cheer`, `crowd:me` | Server | The cheer meter (every 250 ms) and each phone's own picks and whether they were right. |
 | `team:kicked`, `game:reset` | Server | Tell pages to forget their team or crowd identity. |
 
 ## Web requests

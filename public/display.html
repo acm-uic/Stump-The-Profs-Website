@@ -19,6 +19,12 @@
   <main class="display-main">
     <section class="stage">
       <p class="waiting" id="waiting">Waiting for the first question…</p>
+      <section class="final-results clay" id="final" hidden>
+        <p class="final-kicker">Final results</p>
+        <h2 class="final-winner" id="final-winner"></h2>
+        <ol class="standings" id="standings"></ol>
+        <ul class="awards" id="awards"></ul>
+      </section>
       <div class="question clay" id="question"></div>
       <div class="result-banner" id="result" hidden></div>
       <div class="floor" id="floor-box" hidden>
@@ -79,8 +85,6 @@
         <h3 id="predict-title">Crowd predictions</h3>
         <div class="meter"><div class="s" id="pred-s"></div><div class="p" id="pred-p"></div><div class="n" id="pred-n"></div></div>
         <div class="label"><span id="pred-s-label"></span><span id="pred-n-label"></span><span id="pred-p-label"></span></div>
-        <h3 id="crowd-top-title">Top of the crowd</h3>
-        <ol id="crowd-top"></ol>
       </div>
     </section>
   </main>

@@ -46,7 +46,7 @@ test("picks: mc/tf only, while answers are open, valid choices, once", () => {
   assert.equal(pick(crowd, ben, true, "open", { type: "tf", answer: false }).ok, true);
 });
 
-test("settling: right predictions and right picks each earn 10 crowd points", () => {
+test("settling: each phone learns whether its prediction and pick were right; nothing is scored", () => {
   const { crowd, ids: [ana, ben, cy] } = crowdOf("Ana", "Ben", "Cy");
   predict(crowd, ana, "student", "preview");
   predict(crowd, ben, "prof", "preview");
@@ -54,16 +54,17 @@ test("settling: right predictions and right picks each earn 10 crowd points", ()
   pick(crowd, ana, 1, "open", MC);
   pick(crowd, ben, 0, "open", MC);
   settleQuestion(crowd, { winnerSide: "prof", question: MC });
-  assert.equal(crowd.spectators[ana].score, 10); // wrong prediction, right pick
-  assert.equal(crowd.spectators[ben].score, 10); // right prediction, wrong pick
-  assert.equal(crowd.spectators[cy].score, 0);
+  assert.deepEqual(meView(crowd, ana, "revealed"), { id: ana, name: "Ana", prediction: "student", pick: 1, predictionRight: false, pickRight: true });
+  assert.deepEqual(meView(crowd, ben, "revealed"), { id: ben, name: "Ben", prediction: "prof", pick: 0, predictionRight: true, pickRight: false });
+  assert.equal(meView(crowd, cy, "revealed").pickRight, null); // did not pick
+  assert.equal("score" in crowd.spectators[ana], false);
 });
 
 test("'nobody' is right when no team wins", () => {
   const { crowd, ids: [ana] } = crowdOf("Ana");
   predict(crowd, ana, "none", "preview");
   settleQuestion(crowd, { winnerSide: null, question: FREE });
-  assert.equal(crowd.spectators[ana].score, 10);
+  assert.equal(meView(crowd, ana, "revealed").predictionRight, true);
 });
 
 test("the pick split stays hidden until the reveal, then shows percentages", () => {
@@ -79,16 +80,12 @@ test("the pick split stays hidden until the reveal, then shows percentages", () 
   assert.deepEqual(crowdView(crowd, "revealed").pickSplit.map((x) => x.percent), [0, 75, 0, 25]);
 });
 
-test("a new question clears predictions and picks; the leaderboard keeps the top five with points", () => {
-  const { crowd, ids } = crowdOf("A", "B", "C", "D", "E", "F", "G");
-  ids.forEach((id, i) => { crowd.spectators[id].score = (i % 4) * 10; });
+test("a new question clears predictions and picks; there is no crowd leaderboard", () => {
+  const { crowd, ids } = crowdOf("A", "B");
   predict(crowd, ids[0], "prof", "preview");
   startQuestion(crowd);
   assert.deepEqual(crowd.predictions, {});
-  const top = crowdView(crowd, "preview").top;
-  assert.equal(top.length, 5);
-  assert.deepEqual(top.map((s) => s.score), [30, 20, 20, 10, 10]);
-  assert.equal(meView(crowd, ids[3], "preview").rank, 1);
+  assert.equal("top" in crowdView(crowd, "preview"), false);
 });
 
 test("cheer meter: taps add up, decay reaches exactly 0, and the share is 0.5 when quiet", () => {

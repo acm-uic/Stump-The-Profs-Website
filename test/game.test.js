@@ -310,8 +310,8 @@ test("ending a question settles the crowd, and showing the next one clears it", 
   nextAnswer(state);
   nextAnswer(state);
   assert.equal(b.score, 200);
-  assert.equal(crowd.spectators[ana].score, 20); // right prediction and right pick
-  assert.equal(crowd.spectators[ben].score, 0);
+  assert.deepEqual(crowd.lastResult.rightPredictors, [ana]);
+  assert.deepEqual(crowd.lastResult.rightPickers, [ana]);
   showQuestion(state);
   assert.deepEqual(crowd.predictions, {});
 });

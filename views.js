@@ -4,9 +4,9 @@
 //   phase, questionNumber, questionTotal, question { type, prompt, choices?, multiple?, category?, points, image?, answer? }
 //   teams [{ id, name, side, score, rank }], sides { student, prof }, buzzes, floorTeam, upNext
 //   readOut [{ team, answer, correct, partial }], answerRemainingMs, answerTotalMs, answerCount
-//   lockInPoints, result, crowd, answersOpen, music
+//   lockInPoints, result, crowd, answersOpen, music, final (null until the host shows the results)
 //   me { id, name, side, score, code, rank, rankOf }
-//   buzzer: "locked" | "ready" | "buzzed" | "floor" | "tried" | "partial" | "missed" | "over", place (number or null)
+//   buzzer: "locked" | "ready" | "buzzed" | "floor" | "tried" | "partial" | "missed" | "over" | "final", place (number or null)
 //   myAnswer, canAnswer
 //   stats { buzzesWon, correct, wrong, steals, accuracy, avgReactionMs, fastestReactionMs, lockInHits }
 //   history [{ questionNumber, type, result, points }]
@@ -24,7 +24,7 @@ import { isImageLink } from "./images.js";
 
 function questionFor(state, includeAnswer) {
   const q = currentQuestion(state);
-  if (!q) return null;
+  if (!q || state.phase === "final") return null; // the results replace the question
   // Copy only the fields a page may see: never the answer (until the reveal), its other
   // accepted spellings, or the raw music link.
   const { type, prompt, choices, category } = q;
@@ -56,6 +56,7 @@ export function buzzerState(state, teamId) {
   const mine = current.answers[teamId];
   if (state.phase === "lobby" || state.phase === "preview") return { buzzer: "locked", place: null };
   if (state.phase === "revealed") return { buzzer: "over", place: null };
+  if (state.phase === "final") return { buzzer: "final", place: null };
   if (state.phase === "open") {
     const position = current.buzzes.findIndex((b) => b.teamId === teamId);
     return mine ? { buzzer: "buzzed", place: position + 1 } : { buzzer: "ready", place: null };
@@ -104,6 +105,35 @@ export function teamHistory(state, teamId) {
   });
 }
 
+// The end of the night: the winning side, every team ranked, and a few awards.
+export function finalResults(state) {
+  const teams = Object.values(state.teams);
+  const total = (side) => teams.filter((t) => t.side === side).reduce((sum, t) => sum + t.score, 0);
+  const student = total("student");
+  const prof = total("prof");
+  const standings = [...teams]
+    .sort((a, b) => b.score - a.score || a.joinOrder - b.joinOrder)
+    .map((t) => ({ ...teamSummary(t), score: t.score, rank: rankOf(teams, t.id) }));
+  return {
+    winnerSide: student === prof ? null : student > prof ? "student" : "prof",
+    standings,
+    awards: [
+      award("Fastest buzz", teams, (t) => (t.stats.reactionTimes.length ? Math.min(...t.stats.reactionTimes) : null), "low", "ms"),
+      award("Most often first to buzz", teams, (t) => t.stats.buzzesWon || null, "high", "times"),
+      award("Most steals", teams, (t) => t.stats.steals || null, "high", "steals"),
+    ].filter(Boolean),
+  };
+}
+
+// The team or teams with the best value (null values never win), or null if nobody has one.
+function award(title, teams, valueOf, better, unit) {
+  const scored = teams.map((t) => ({ team: t, value: valueOf(t) })).filter((s) => s.value !== null);
+  if (scored.length === 0) return null;
+  const best = better === "low" ? Math.min(...scored.map((s) => s.value)) : Math.max(...scored.map((s) => s.value));
+  const winners = scored.filter((s) => s.value === best).sort((a, b) => a.team.joinOrder - b.team.joinOrder);
+  return { title, teams: winners.map((s) => teamSummary(s.team)), value: best, unit };
+}
+
 function teamSummary(team) {
   if (!team) return null;
   return { id: team.id, name: team.name, side: team.side };
@@ -113,7 +143,7 @@ function teamSummary(team) {
 // one is on screen, otherwise the background link.
 export function musicView(state) {
   const music = state.music ?? { background: null, playing: false, volume: 60 };
-  const question = state.phase === "lobby" ? null : currentQuestion(state);
+  const question = state.phase === "lobby" || state.phase === "final" ? null : currentQuestion(state);
   return {
     playing: music.playing,
     volume: music.volume,
@@ -165,6 +195,7 @@ export function publicView(state, now) {
     answersOpen: state.phase === "preview" || state.phase === "open",
     lockInPoints: question ? lockInPoints(question) : 0,
     music: musicView(state),
+    final: state.phase === "final" ? finalResults(state) : null,
     result:
       state.phase === "revealed"
         ? {

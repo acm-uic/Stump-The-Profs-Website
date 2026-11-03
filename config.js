@@ -24,10 +24,6 @@ export const MAX_ANSWER_SECONDS = 300;
 // Biggest picture the host page may upload for a question (5 MB).
 export const MAX_IMAGE_BYTES = 5_000_000;
 
-// Crowd points for spectators: a right prediction (which side wins the question)
-// and a right answer-along pick on multiple choice and true/false.
-export const CROWD_POINTS = { prediction: 10, pick: 10 };
-
 // Cheer meter: each tick (CHEER_TICK_MS) both totals shrink by CHEER_DECAY, so the
 // meter shows the room's energy right now, not all night. A phone may cheer at most
 // once every CHEER_MIN_GAP_MS.

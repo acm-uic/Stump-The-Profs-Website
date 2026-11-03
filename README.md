@@ -30,6 +30,8 @@ Because every answer is sealed before anyone speaks, no team can copy another.
 
 Questions can show a picture. A multiple choice question can have several right answers ("pick all that apply"): every right choice scores as a right answer, some of them with no wrong ones scores a small share, and any wrong choice scores nothing.
 
+After the last question, the host shows the final results on every screen: the winning side, every player ranked, and a few awards.
+
 | Type | First right answer | Any other right answer |
 |---|---|---|
 | Free response | 300 | 75 |

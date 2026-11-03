@@ -1,8 +1,10 @@
 // Spectator play: nicknames, predictions, answer-along picks, and the cheer meter.
+// It is just for fun: spectators are told whether they were right, but nothing is scored,
+// because the players themselves compete.
 // Like game.js, it knows nothing about sockets. It also does not read the game:
 // whatever it needs to know (the phase, the question) is passed in.
 
-import { CROWD_POINTS, CHEER_DECAY } from "./config.js";
+import { CHEER_DECAY } from "./config.js";
 import { isRightChoice } from "./scoring.js";
 
 const PREDICTIONS = ["student", "prof", "none"];
@@ -10,7 +12,7 @@ const MAX_NICKNAME = 20;
 
 export function createCrowd() {
   return {
-    spectators: {}, // id -> { id, name, score, joinOrder }
+    spectators: {}, // id -> { id, name, joinOrder }
     nextId: 1,
     predictions: {}, // spectator id -> "student" | "prof" | "none"
     picks: {},       // spectator id -> choice index (mc) or true/false (tf)
@@ -26,7 +28,7 @@ export function joinCrowd(crowd, name) {
   if (taken) return { ok: false, error: "That nickname is taken" };
 
   const joinOrder = crowd.nextId++;
-  const spectator = { id: `s${joinOrder}`, name: clean, score: 0, joinOrder };
+  const spectator = { id: `s${joinOrder}`, name: clean, joinOrder };
   crowd.spectators[spectator.id] = spectator;
   return { ok: true, spectator };
 }
@@ -77,17 +79,11 @@ export function settleQuestion(crowd, { winnerSide, question }) {
   const actual = winnerSide ?? "none";
   const rightPredictors = [];
   for (const [id, side] of Object.entries(crowd.predictions)) {
-    if (side === actual && crowd.spectators[id]) {
-      crowd.spectators[id].score += CROWD_POINTS.prediction;
-      rightPredictors.push(id);
-    }
+    if (side === actual && crowd.spectators[id]) rightPredictors.push(id);
   }
   const rightPickers = [];
   for (const [id, choice] of Object.entries(crowd.picks)) {
-    if (isRightChoice(question, choice) && crowd.spectators[id]) {
-      crowd.spectators[id].score += CROWD_POINTS.pick;
-      rightPickers.push(id);
-    }
+    if (isRightChoice(question, choice) && crowd.spectators[id]) rightPickers.push(id);
   }
   crowd.lastResult = {
     actual,
@@ -115,10 +111,6 @@ function pickSplit(crowd, question) {
   }));
 }
 
-function ranked(crowd) {
-  return Object.values(crowd.spectators).sort((a, b) => b.score - a.score || a.joinOrder - b.joinOrder);
-}
-
 // What the projector and every phone may see about the crowd. Picks stay hidden
 // until the reveal, so teams cannot read the room's answer off the projector.
 export function crowdView(crowd, phase) {
@@ -128,7 +120,6 @@ export function crowdView(crowd, phase) {
     predictionCounts: revealed ? crowd.lastResult.predictionCounts : countPredictions(crowd),
     pickCount: Object.keys(crowd.picks).length,
     pickSplit: revealed ? crowd.lastResult.pickSplit : null,
-    top: ranked(crowd).filter((s) => s.score > 0).slice(0, 5).map(({ name, score }) => ({ name, score })),
   };
 }
 
@@ -136,14 +127,10 @@ export function crowdView(crowd, phase) {
 export function meView(crowd, id, phase) {
   const me = crowd.spectators[id];
   if (!me) return null;
-  const all = Object.values(crowd.spectators);
   const result = phase === "revealed" ? crowd.lastResult : null;
   return {
     id,
     name: me.name,
-    score: me.score,
-    rank: 1 + all.filter((s) => s.score > me.score).length,
-    rankOf: all.length,
     prediction: crowd.predictions[id] ?? null,
     pick: id in crowd.picks ? crowd.picks[id] : null,
     predictionRight: result ? result.rightPredictors.includes(id) : null,

@@ -8,7 +8,7 @@ import { Server } from "socket.io";
 import {
   createGame, registerTeam, rejoinTeam, showQuestion, openBuzzers, buzz, closeAnswers, nextAnswer, judge, reveal,
   markAnswer, adjustScore, kickTeam, toggleRegistration, replaceQuestions, setMusic, upgradeState, answerDeadline,
-  currentQuestion,
+  currentQuestion, showResults,
 } from "./game.js";
 import { loadQuestions, saveQuestions, saveState, loadState, saveImage, listImages } from "./store.js";
 import { isImageName, imageProblem } from "./images.js";
@@ -220,6 +220,7 @@ const adminActions = {
   next: () => nextAnswer(state),
   judge: (action) => judge(state, action.correct),
   reveal: () => reveal(state),
+  results: () => showResults(state),
   markAnswer: (action) => markAnswer(state, action.teamId, action.correct),
   adjust: (action) => adjustScore(state, action.teamId, action.delta),
   kick: (action) => {

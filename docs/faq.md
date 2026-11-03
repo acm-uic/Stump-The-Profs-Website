@@ -52,8 +52,8 @@ See [What the big button means](players.md#what-the-big-button-means).
 **How do I play along?**
 Open the site on your phone, tap **Display**, and join with a nickname (up to 20 characters). Predict who gets each question, answer along, and cheer for your side. ([How to play](players.md#for-the-audience))
 
-**Does my score affect the teams?**
-No. Crowd points (10 for a right prediction, 10 for a right answer) only count on the crowd board. The cheer meter only shows which side is loudest.
+**Does the audience score points?**
+No. Predicting and answering along are just for fun; your phone tells you whether you were right. Only the players compete. The cheer meter only shows which side is loudest.
 
 **Why can't I answer along on this question?**
 Answer-along is only for multiple choice and true/false. It closes when the teams' answers close, and you get one tap per question. On "Pick all that apply" questions you still tap one answer; any of the right ones counts.
@@ -76,7 +76,7 @@ No. Undo steps back through your last 30 actions, but there is no way to replay 
 Between questions, click **Remove** next to the team and have it join again with the new name or side. Its score starts at 0, so use **Adjust** to give its points back.
 
 **Who wins the night?**
-The side with more points. The projector shows the Students and Professors totals all night. The game does not announce a winner or break ties. If you want a tiebreaker, put a spare question at the end of the questions file, because questions cannot be added once the game has started.
+The side with more points. After the last question, the host presses **F** to show the final results on every screen: the winning side, every player ranked, and a few awards. ([The end of the game](run-the-event.md#the-end-of-the-game)) Equal totals show as a tie; the game does not break ties itself. If you want a tiebreaker, put a spare question at the end of the questions file, because questions cannot be added once the game has started.
 
 **What happens if the server restarts during the game?**
 Nothing is lost. The game is saved after every change and comes back where it was in under a minute. Every page reconnects by itself. Only the Undo history is lost.

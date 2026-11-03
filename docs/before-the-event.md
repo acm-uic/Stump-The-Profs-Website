@@ -171,6 +171,7 @@ Do a full practice run on the live site at least a day before. Use 3 or more lap
 - [ ] Every question with a `music` link plays on the projector.
 - [ ] **Restart test:** in the middle of a question, click **Restart** in Argo CD. Within a minute everything comes back where it was.
 - [ ] **Idle test:** leave a team laptop on `player.html` for 15 minutes without touching it. The top right should stay "Connected". (The projector hides this line.) If it keeps dropping to "Reconnecting…", tell the SysAdmins; the cluster may be closing quiet connections.
+- [ ] After the last question, **F** shows the final results on the projector, the laptops and a phone. Press **Z** to go back.
 - [ ] Afterwards: **Export backup**, **Reset game…**, and check the real questions are loaded.
 
 ## Known issues

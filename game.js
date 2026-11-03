@@ -5,6 +5,7 @@
 // A question moves through phases:
 //   lobby -> preview (question shown) -> open (teams pick an answer and press BUZZ to lock it in)
 //         -> judging (sealed answers read out one by one) -> revealed (answer shown) -> preview ...
+// After any reveal, the host can end the night: final (every screen shows the results).
 // Nobody says an answer out loud until every answer is sealed, so nobody can copy one.
 // Every action first checks it is allowed in the current phase.
 
@@ -60,7 +61,7 @@ export function upgradeState(state) {
     delete current.lockInsOpen;
     delete current.answeringSince;
   }
-  if (!["lobby", "preview", "open", "judging", "revealed"].includes(state.phase)) {
+  if (!["lobby", "preview", "open", "judging", "revealed", "final"].includes(state.phase)) {
     state.current = freshCurrent();
     state.phase = state.questionIndex >= 0 ? "preview" : "lobby";
   }
@@ -338,6 +339,14 @@ function endQuestion(state) {
   settleLockIns(state);
   const winner = state.teams[state.current.winnerTeamId];
   settleQuestion(state.crowd, { winnerSide: winner?.side ?? null, question });
+}
+
+// The end of the night: every screen shows the final standings. Allowed after any
+// reveal, so the host can also end early; Undo brings the game back.
+export function showResults(state) {
+  if (state.phase !== "revealed") return { ok: false, error: "Reveal the answer first" };
+  state.phase = "final";
+  return { ok: true };
 }
 
 // ---- Answers after the reveal ------------------------------------------------

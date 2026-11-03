@@ -197,6 +197,7 @@ function buzzerLabel(view) {
     case "partial": return ["PARTLY RIGHT", `${mine}: some of the right answers. Points come when the question ends.`];
     case "missed": return ["NO ANSWER", "Time ran out before you locked in"];
     case "over": return ["DONE", resultLine(view)];
+    case "final": return ["FINISHED", finalLine(view)];
     default: return ["", ""];
   }
 }
@@ -211,10 +212,20 @@ function resultLine(view) {
   return result.winner ? `${result.winner.name} got it` : "Nobody got it";
 }
 
+// "You finished 2nd of 6. Your side wins!"
+function finalLine(view) {
+  const { me, final } = view;
+  const sides = !final?.winnerSide ? "The sides are tied."
+    : final.winnerSide === me.side ? "Your side wins!"
+    : `${SIDE_NAMES[final.winnerSide]} win.`;
+  return `You finished ${ordinal(me.rank)} of ${me.rankOf}. ${sides}`;
+}
+
 function drawBuzzer(view) {
   const [label, sub] = buzzerLabel(view);
   const buzzButton = $("#buzz");
   buzzButton.className = view.buzzer;
+  $("#buzz-hint").hidden = view.phase === "final"; // nothing left to buzz for
   buzzButton.disabled = !(view.buzzer === "ready" && view.canAnswer && hasSelection() && timeLeft() > 0);
   buzzButton.replaceChildren(label);
   if (sub) {

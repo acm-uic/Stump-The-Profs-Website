@@ -99,7 +99,6 @@ How it scores, for a 200-point question whose right choices are A and C:
 
 - Partly right points are added when the question ends.
 - With 3 right choices, finding 2 earns two thirds of the "also right" points (33 on a 200-point question).
-- The audience still taps one choice on their phones. Any of the right choices counts for them.
 
 ## Pictures
 

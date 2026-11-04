@@ -4,7 +4,6 @@ import { createGame, registerTeam, showQuestion, openBuzzers, buzz, nextAnswer, 
 import { validateQuestions } from "../store.js";
 import { rightShare, partialPoints, autoCheck } from "../scoring.js";
 import { publicView, teamView } from "../views.js";
-import { createCrowd, joinCrowd, pick, settleQuestion } from "../crowd.js";
 
 // Two right choices out of four: A (0) and C (2). Worth 200, so "also right" is 50.
 const STABLE = { id: "q1", type: "mc", prompt: "Which sorts are stable?", choices: ["Merge", "Quick", "Insertion", "Heap"], answer: [0, 2] };
@@ -78,16 +77,6 @@ test("when nobody has every right choice, partly right picks still score and nob
   assert.equal(a.score, 25);
   assert.equal(b.score, 0);
   assert.equal(b.stats.wrong, 1);
-});
-
-test("the crowd taps one choice, and any right choice counts", () => {
-  const crowd = createCrowd();
-  const ana = joinCrowd(crowd, "Ana").spectator.id;
-  const ben = joinCrowd(crowd, "Ben").spectator.id;
-  pick(crowd, ana, 2, "open", STABLE);
-  pick(crowd, ben, 1, "open", STABLE);
-  settleQuestion(crowd, { winnerSide: null, question: STABLE });
-  assert.deepEqual(crowd.lastResult.rightPickers, [ana]);
 });
 
 test("pages are told to allow several picks, but not which ones are right", () => {

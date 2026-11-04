@@ -1,22 +1,18 @@
-// Spectator play: nicknames, predictions, answer-along picks, and the cheer meter.
-// It is just for fun: spectators are told whether they were right, but nothing is scored,
-// because the players themselves compete.
+// Spectator play: nicknames, one prediction for the whole game, and the cheer meter.
+// It is just for fun: nothing is scored, because the players themselves compete.
 // Like game.js, it knows nothing about sockets. It also does not read the game:
-// whatever it needs to know (the phase, the question) is passed in.
+// whatever it needs to know is passed in.
 
 import { CHEER_DECAY } from "./config.js";
-import { isRightChoice } from "./scoring.js";
 
-const PREDICTIONS = ["student", "prof", "none"];
+const SIDES = ["student", "prof"];
 const MAX_NICKNAME = 20;
 
 export function createCrowd() {
   return {
     spectators: {}, // id -> { id, name, joinOrder }
     nextId: 1,
-    predictions: {}, // spectator id -> "student" | "prof" | "none"
-    picks: {},       // spectator id -> choice index (mc) or true/false (tf)
-    lastResult: null, // filled when a question ends: counts, split, who was right
+    predictions: {}, // spectator id -> "student" | "prof": which side wins the game
   };
 }
 
@@ -38,103 +34,48 @@ export function rejoinCrowd(crowd, id) {
   return spectator ? { ok: true, spectator } : { ok: false, error: "Unknown spectator" };
 }
 
-// Predict which side wins this question. Only while the question is being read
-// (preview); once buzzers open, the answer starts to become obvious.
-export function predict(crowd, id, side, phase) {
+// Predict which side wins the whole game. Open until the first question's answers
+// open (game.js decides that); until then a spectator can change their mind.
+export function predict(crowd, id, side, predictionsOpen) {
   if (!crowd.spectators[id]) return { ok: false, error: "Join the crowd first" };
-  if (phase !== "preview") return { ok: false, error: "Predictions close when the buzzers open" };
-  if (!PREDICTIONS.includes(side)) return { ok: false, error: "Predict students, profs or nobody" };
-  crowd.predictions[id] = side; // can change your mind until the buzzers open
+  if (!predictionsOpen) return { ok: false, error: "Predictions closed when the first question started" };
+  if (!SIDES.includes(side)) return { ok: false, error: "Predict students or profs" };
+  crowd.predictions[id] = side;
   return { ok: true };
-}
-
-// Answer along on mc and tf. Open while the teams are answering, closed before the
-// first sealed answer is read out, and once only.
-export function pick(crowd, id, choice, phase, question) {
-  if (!crowd.spectators[id]) return { ok: false, error: "Join the crowd first" };
-  if (!question || (question.type !== "mc" && question.type !== "tf")) {
-    return { ok: false, error: "Answer-along is for multiple choice and true/false" };
-  }
-  if (!["preview", "open"].includes(phase)) {
-    return { ok: false, error: "Answers are closed" };
-  }
-  const valid = question.type === "mc"
-    ? Number.isInteger(choice) && choice >= 0 && choice < question.choices.length
-    : typeof choice === "boolean";
-  if (!valid) return { ok: false, error: "Pick one of the answers" };
-  if (id in crowd.picks) return { ok: false, error: "You already answered" };
-  crowd.picks[id] = choice;
-  return { ok: true };
-}
-
-// A new question: clear the previous question's predictions and picks.
-export function startQuestion(crowd) {
-  crowd.predictions = {};
-  crowd.picks = {};
-  crowd.lastResult = null;
-}
-
-// The question ended. outcome = { winnerSide: "student" | "prof" | null, question }.
-export function settleQuestion(crowd, { winnerSide, question }) {
-  const actual = winnerSide ?? "none";
-  const rightPredictors = [];
-  for (const [id, side] of Object.entries(crowd.predictions)) {
-    if (side === actual && crowd.spectators[id]) rightPredictors.push(id);
-  }
-  const rightPickers = [];
-  for (const [id, choice] of Object.entries(crowd.picks)) {
-    if (isRightChoice(question, choice) && crowd.spectators[id]) rightPickers.push(id);
-  }
-  crowd.lastResult = {
-    actual,
-    predictionCounts: countPredictions(crowd),
-    pickSplit: pickSplit(crowd, question),
-    rightPredictors,
-    rightPickers,
-  };
 }
 
 function countPredictions(crowd) {
-  const counts = { student: 0, prof: 0, none: 0 };
+  const counts = { student: 0, prof: 0 };
   for (const side of Object.values(crowd.predictions)) counts[side] += 1;
   return counts;
 }
 
-// Percent of pickers per option, in option order. null when nobody could pick.
-function pickSplit(crowd, question) {
-  if (!question || (question.type !== "mc" && question.type !== "tf")) return null;
-  const options = question.type === "mc" ? question.choices.map((_, i) => i) : [true, false];
-  const picks = Object.values(crowd.picks);
-  return options.map((option) => ({
-    option,
-    percent: picks.length === 0 ? 0 : Math.round((picks.filter((p) => p === option).length / picks.length) * 100),
-  }));
-}
-
-// What the projector and every phone may see about the crowd. Picks stay hidden
-// until the reveal, so teams cannot read the room's answer off the projector.
-export function crowdView(crowd, phase) {
-  const revealed = phase === "revealed" && crowd.lastResult;
+// What the projector and every phone may see about the crowd.
+export function crowdView(crowd) {
   return {
     count: Object.keys(crowd.spectators).length,
-    predictionCounts: revealed ? crowd.lastResult.predictionCounts : countPredictions(crowd),
-    pickCount: Object.keys(crowd.picks).length,
-    pickSplit: revealed ? crowd.lastResult.pickSplit : null,
+    predictionCounts: countPredictions(crowd),
   };
 }
 
-// What one spectator's phone needs about itself.
-export function meView(crowd, id, phase) {
+// How many spectators called the winning side, for the final results.
+// winnerSide is null for a tie, which nobody predicted.
+export function predictionTally(crowd, winnerSide) {
+  const all = Object.values(crowd.predictions);
+  return { called: all.filter((side) => side === winnerSide).length, predicted: all.length };
+}
+
+// What one spectator's phone needs about itself. winnerSide is only passed once the
+// final results are showing (null for a tie); before that, nobody is right or wrong yet.
+export function meView(crowd, id, winnerSide) {
   const me = crowd.spectators[id];
   if (!me) return null;
-  const result = phase === "revealed" ? crowd.lastResult : null;
+  const prediction = crowd.predictions[id] ?? null;
   return {
     id,
     name: me.name,
-    prediction: crowd.predictions[id] ?? null,
-    pick: id in crowd.picks ? crowd.picks[id] : null,
-    predictionRight: result ? result.rightPredictors.includes(id) : null,
-    pickRight: result && id in crowd.picks ? result.rightPickers.includes(id) : null,
+    prediction,
+    predictionRight: winnerSide === undefined || prediction === null ? null : prediction === winnerSide,
   };
 }
 

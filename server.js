@@ -8,16 +8,16 @@ import { Server } from "socket.io";
 import {
   createGame, registerTeam, rejoinTeam, showQuestion, openBuzzers, buzz, closeAnswers, nextAnswer, judge, reveal,
   markAnswer, adjustScore, kickTeam, toggleRegistration, replaceQuestions, setMusic, upgradeState, answerDeadline,
-  currentQuestion, showResults,
+  currentQuestion, showResults, predictionsOpen,
 } from "./game.js";
 import { loadQuestions, saveQuestions, saveState, loadState, saveImage, listImages } from "./store.js";
 import { isImageName, imageProblem } from "./images.js";
-import { joinCrowd, rejoinCrowd, predict, pick, meView, createMeter, cheer, decayCheer } from "./crowd.js";
+import { joinCrowd, rejoinCrowd, predict, meView, createMeter, cheer, decayCheer } from "./crowd.js";
 import {
   CHEER_TICK_MS, CHEER_MIN_GAP_MS, PORT, ADMIN_KEY, SAVE_PATH, QUESTIONS_PATH, IMAGES_PATH, PUBLIC_URL, UNDO_LIMIT,
   LATE_GRACE_MS, MAX_IMAGE_BYTES,
 } from "./config.js";
-import { publicView, teamView, adminView } from "./views.js";
+import { publicView, teamView, adminView, finalResults } from "./views.js";
 
 // ---- Startup checks: fail fast, with instructions ----
 
@@ -128,9 +128,10 @@ function broadcast() {
   for (const teamId of Object.keys(state.teams)) {
     io.to(`team:${teamId}`).emit("state", teamView(state, teamId, now));
   }
-  // Each spectator's phone also gets its own score, rank and choices.
+  // Each spectator's phone also gets its own prediction, and whether it was right once the results show.
+  const winnerSide = gameWinnerSide();
   for (const id of Object.keys(state.crowd.spectators)) {
-    io.to(`spectator:${id}`).emit("crowd:me", meView(state.crowd, id, state.phase));
+    io.to(`spectator:${id}`).emit("crowd:me", meView(state.crowd, id, winnerSide));
   }
   try {
     saveState(state, savePath);
@@ -155,7 +156,7 @@ function scheduleClose() {
   }, Math.max(0, wait) + 50);
 }
 
-// Predictions and picks can arrive from a hundred phones at once. Rather than one full
+// Joins and predictions can arrive from a hundred phones at once. Rather than one full
 // broadcast per tap, gather them and broadcast at most every 200 ms.
 let broadcastTimer = null;
 function broadcastSoon() {
@@ -179,6 +180,11 @@ setInterval(() => {
     io.to("display").emit("cheer", payload);
   }
 }, CHEER_TICK_MS);
+
+// The winning side once the final results are showing (null for a tie), otherwise undefined.
+function gameWinnerSide() {
+  return state.phase === "final" ? finalResults(state).winnerSide : undefined;
+}
 
 // The host gets the admin view plus what only the server knows: how many steps Undo
 // has and which pictures are uploaded.
@@ -353,19 +359,12 @@ io.on("connection", (socket) => {
     socket.join(`spectator:${id}`);
     socket.data.spectatorId = id;
     reply(callback, { ok: true, id, name });
-    socket.emit("crowd:me", meView(state.crowd, id, state.phase));
+    socket.emit("crowd:me", meView(state.crowd, id, gameWinnerSide()));
     broadcastSoon(); // the crowd count changed
   });
 
   socket.on("crowd:predict", (details, callback) => {
-    const result = predict(state.crowd, socket.data.spectatorId, details?.side, state.phase);
-    reply(callback, result.ok ? { ok: true } : { ok: false, error: result.error });
-    if (result.ok) broadcastSoon();
-  });
-
-  socket.on("crowd:pick", (details, callback) => {
-    const question = state.questions[state.questionIndex];
-    const result = pick(state.crowd, socket.data.spectatorId, details?.choice, state.phase, question);
+    const result = predict(state.crowd, socket.data.spectatorId, details?.side, predictionsOpen(state));
     reply(callback, result.ok ? { ok: true } : { ok: false, error: result.error });
     if (result.ok) broadcastSoon();
   });

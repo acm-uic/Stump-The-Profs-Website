@@ -4,7 +4,7 @@
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>Display · Stump the Profs</title>
-  <meta name="description" content="Follow Stump the Profs live, predict who gets each question and cheer for your side.">
+  <meta name="description" content="Follow Stump the Profs live, predict which side wins and cheer for your side.">
   <link rel="preload" href="/fonts/clash-display-600.woff2" as="font" type="font/woff2" crossorigin>
   <link rel="stylesheet" href="/style.css">
 </head>
@@ -22,6 +22,7 @@
       <section class="final-results clay" id="final" hidden>
         <p class="final-kicker">Final results</p>
         <h2 class="final-winner" id="final-winner"></h2>
+        <p class="final-crowd" id="final-crowd"></p>
         <ol class="standings" id="standings"></ol>
         <ul class="awards" id="awards"></ul>
       </section>
@@ -46,16 +47,11 @@
         <div id="crowd-controls" hidden>
           <p class="me" id="crowd-me"></p>
           <div id="predict-box">
-            <div>Who gets this one?</div>
+            <div>Who wins tonight?</div>
             <div class="row" id="predict-row">
               <button type="button" data-side="student">Students</button>
               <button type="button" data-side="prof">Profs</button>
-              <button type="button" data-side="none">Nobody</button>
             </div>
-          </div>
-          <div id="pick-box">
-            <div id="pick-label">Your answer:</div>
-            <div class="row" id="pick-row"></div>
           </div>
           <p class="feedback" id="crowd-feedback"></p>
           <div>Cheer for your side!</div>
@@ -82,9 +78,9 @@
       <div class="crowd-board">
         <h3>Cheer meter</h3>
         <div class="meter"><div class="s" id="cheer-s"></div><div class="p" id="cheer-p"></div></div>
-        <h3 id="predict-title">Crowd predictions</h3>
-        <div class="meter"><div class="s" id="pred-s"></div><div class="p" id="pred-p"></div><div class="n" id="pred-n"></div></div>
-        <div class="label"><span id="pred-s-label"></span><span id="pred-n-label"></span><span id="pred-p-label"></span></div>
+        <h3 id="predict-title">Who the crowd thinks wins</h3>
+        <div class="meter"><div class="s" id="pred-s"></div><div class="p" id="pred-p"></div></div>
+        <div class="label"><span id="pred-s-label"></span><span id="pred-p-label"></span></div>
       </div>
     </section>
   </main>

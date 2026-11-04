@@ -50,13 +50,13 @@ See [What the big button means](players.md#what-the-big-button-means).
 ## In the audience
 
 **How do I play along?**
-Open the site on your phone, tap **Display**, and join with a nickname (up to 20 characters). Predict who gets each question, answer along, and cheer for your side. ([How to play](players.md#for-the-audience))
+Open the site on your phone, tap **Display**, and join with a nickname (up to 20 characters). Predict which side wins the night, cheer for your side, and follow every question. ([How to play](players.md#for-the-audience))
 
 **Does the audience score points?**
-No. Predicting and answering along are just for fun; your phone tells you whether you were right. Only the players compete. The cheer meter only shows which side is loudest.
+No. Your prediction is just for fun; at the end your phone says whether you called it. Only the players compete. The cheer meter only shows which side is loudest.
 
-**Why can't I answer along on this question?**
-Answer-along is only for multiple choice and true/false. It closes when the teams' answers close, and you get one tap per question. On "Pick all that apply" questions you still tap one answer; any of the right ones counts.
+**Why can't I change my prediction?**
+Predictions lock when the host opens answers on the first question, so nobody can wait to see which side pulls ahead. If you joined after that, you can still watch and cheer.
 
 **My phone closed the page.**
 Open it again in the same browser and you are back in. If the host reset the game, join again.

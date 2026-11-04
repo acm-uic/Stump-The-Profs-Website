@@ -13,7 +13,7 @@ import { pointsFor, lockInPoints, autoCheck, answerSeconds, isMultiAnswer, right
 import { validateQuestions } from "./store.js";
 import { LOCKIN_MAX_LENGTH, MAX_ADJUST, LATE_GRACE_MS } from "./config.js";
 import { stealOrder } from "./turns.js";
-import { createCrowd, startQuestion, settleQuestion } from "./crowd.js";
+import { createCrowd } from "./crowd.js";
 import { parseYouTube } from "./music.js";
 
 const SIDES = ["student", "prof"];
@@ -43,7 +43,7 @@ export function createGame(questions = []) {
     registrationOpen: true,
     current: freshCurrent(),
     history: [], // one record per finished question, used for each team's history and stats
-    crowd: createCrowd(), // spectators and their predictions, picks and scores
+    crowd: createCrowd(), // spectators and their predictions for the whole game
     music: { background: null, playing: false, volume: 60 }, // played by the projector
   };
 }
@@ -60,6 +60,12 @@ export function upgradeState(state) {
     delete current.lockIns;
     delete current.lockInsOpen;
     delete current.answeringSince;
+  }
+  // Crowd predictions used to be per question, with answer-along picks: keep only the spectators.
+  if ("picks" in state.crowd) {
+    delete state.crowd.picks;
+    delete state.crowd.lastResult;
+    state.crowd.predictions = {};
   }
   if (!["lobby", "preview", "open", "judging", "revealed", "final"].includes(state.phase)) {
     state.current = freshCurrent();
@@ -164,7 +170,6 @@ export function showQuestion(state, index) {
   }
   state.questionIndex = target;
   state.current = freshCurrent();
-  startQuestion(state.crowd);
   state.phase = "preview";
   return { ok: true };
 }
@@ -337,8 +342,12 @@ function endQuestion(state) {
     partialsAwarded: {}, // teamId -> points, for partly right multiple-answer picks
   });
   settleLockIns(state);
-  const winner = state.teams[state.current.winnerTeamId];
-  settleQuestion(state.crowd, { winnerSide: winner?.side ?? null, question });
+}
+
+// The crowd predicts the winning side until the first question's answers open, so
+// nobody can wait to see which side pulls ahead.
+export function predictionsOpen(state) {
+  return state.phase === "lobby" || (state.phase === "preview" && state.questionIndex === 0);
 }
 
 // The end of the night: every screen shows the final standings. Allowed after any

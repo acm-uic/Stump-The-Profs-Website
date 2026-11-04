@@ -130,7 +130,6 @@ body.player .question-image { max-height: 15rem; }
   background: var(--color-paper); box-shadow: var(--shadow-well); font-weight: 800;
 }
 .choices li.correct { background: var(--color-success); color: var(--color-success-ink); box-shadow: var(--shadow-clay-sm); }
-.choices .split { font-variant-numeric: tabular-nums; font-size: var(--text-sm); padding: 0 var(--space-xs); border-radius: var(--radius-pill); background: var(--color-clay); color: var(--color-ink); }
 
 /* Team lists: flat rows on the paper, side colour on the score. */
 .teams { list-style: none; margin: 0; padding: 0; }
@@ -148,7 +147,6 @@ body.player .question-image { max-height: 15rem; }
 .tug div, .meter div, .bar div { min-width: 0; }
 .tug .s, #tug-students, .meter .s, .cheer-row .s { background: var(--color-students); color: var(--color-students-ink); }
 .tug .p, #tug-profs, .meter .p, .cheer-row .p { background: var(--color-profs); color: var(--color-profs-ink); }
-.meter .n { background: var(--color-idle); }
 .bar div { height: 100%; width: 0; background: var(--color-turn); }
 
 /* ---------- Home ---------- */
@@ -361,6 +359,8 @@ body.display:not(.projector) .connection { margin: 0; padding: 0 var(--gutter); 
 .final-results { display: grid; gap: var(--space-md); }
 .final-kicker { font-weight: 800; color: var(--color-muted); text-transform: uppercase; letter-spacing: 0.08em; font-size: var(--text-sm); }
 .final-winner { font-size: var(--text-4xl); line-height: 1.05; }
+.final-crowd { font-weight: 800; color: var(--color-ink-2); }
+.final-crowd:empty { display: none; }
 .final-winner[data-side="student"] { color: var(--color-students-text); }
 .final-winner[data-side="prof"] { color: var(--color-profs-text); }
 .standings { list-style: none; margin: 0; padding: 0; display: grid; gap: var(--space-xs); }
@@ -374,6 +374,10 @@ body.display:not(.projector) .connection { margin: 0; padding: 0 var(--gutter); 
 .standings .podium { background: var(--color-clay); box-shadow: var(--shadow-clay-sm); }
 .standings .podium .rank { color: var(--color-ink); }
 .standings .p1 { font-size: var(--text-xl); }
+/* On a phone, each side shows as a coloured dot, so names have room. */
+@media (max-width: 30rem) {
+  .standings .side-chip { font-size: 0; width: 0.75rem; height: 0.75rem; padding: 0; }
+}
 .awards { list-style: none; margin: 0; padding: 0; display: grid; grid-template-columns: repeat(auto-fit, minmax(min(100%, 11rem), 1fr)); gap: var(--space-sm); }
 .awards li { display: grid; gap: var(--space-3xs); padding: var(--space-sm) var(--space-md); border-radius: var(--radius-control); background: var(--color-paper-2); box-shadow: var(--shadow-well); }
 .award-title { font-size: var(--text-sm); font-weight: 800; color: var(--color-muted); }

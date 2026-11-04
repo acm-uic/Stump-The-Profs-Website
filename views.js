@@ -4,7 +4,7 @@
 //   phase, questionNumber, questionTotal, question { type, prompt, choices?, multiple?, category?, points, image?, answer? }
 //   teams [{ id, name, side, score, rank }], sides { student, prof }, buzzes, floorTeam, upNext
 //   readOut [{ team, answer, correct, partial }], answerRemainingMs, answerTotalMs, answerCount
-//   lockInPoints, result, crowd, answersOpen, music, final (null until the host shows the results)
+//   lockInPoints, result, crowd, predictionsOpen, music, final (null until the host shows the results)
 //   me { id, name, side, score, code, rank, rankOf }
 //   buzzer: "locked" | "ready" | "buzzed" | "floor" | "tried" | "partial" | "missed" | "over" | "final", place (number or null)
 //   myAnswer, canAnswer
@@ -16,9 +16,9 @@
 // developer tools. A sealed answer reaches other pages only once it has been read out.
 // Views only copy; they never change the state.
 
-import { currentQuestion, upNext, answerDeadline } from "./game.js";
+import { currentQuestion, upNext, answerDeadline, predictionsOpen } from "./game.js";
 import { pointsFor, lockInPoints, answerSeconds, isMultiAnswer } from "./scoring.js";
-import { crowdView } from "./crowd.js";
+import { crowdView, predictionTally } from "./crowd.js";
 import { parseYouTube } from "./music.js";
 import { isImageLink } from "./images.js";
 
@@ -111,12 +111,14 @@ export function finalResults(state) {
   const total = (side) => teams.filter((t) => t.side === side).reduce((sum, t) => sum + t.score, 0);
   const student = total("student");
   const prof = total("prof");
+  const winnerSide = student === prof ? null : student > prof ? "student" : "prof";
   const standings = [...teams]
     .sort((a, b) => b.score - a.score || a.joinOrder - b.joinOrder)
     .map((t) => ({ ...teamSummary(t), score: t.score, rank: rankOf(teams, t.id) }));
   return {
-    winnerSide: student === prof ? null : student > prof ? "student" : "prof",
+    winnerSide,
     standings,
+    crowd: predictionTally(state.crowd, winnerSide), // how many spectators called it
     awards: [
       award("Fastest buzz", teams, (t) => (t.stats.reactionTimes.length ? Math.min(...t.stats.reactionTimes) : null), "low", "ms"),
       award("Most often first to buzz", teams, (t) => t.stats.buzzesWon || null, "high", "times"),
@@ -179,7 +181,8 @@ export function publicView(state, now) {
       ms: at - current.openedAt,
     })),
     // Answers already read out, in reading order, each with its ruling (null: the host is deciding).
-    readOut: readIds.filter((id) => state.teams[id]).map((id) => ({
+    // None once the final results replace the question.
+    readOut: state.phase === "final" ? [] : readIds.filter((id) => state.teams[id]).map((id) => ({
       team: teamSummary(state.teams[id]),
       answer: current.answers[id].answer,
       correct: id === current.activeTeamId ? null : current.answers[id].correct,
@@ -190,9 +193,8 @@ export function publicView(state, now) {
     answerTotalMs: question ? answerSeconds(question) * 1000 : 0,
     answerRemainingMs: state.phase === "open" ? Math.max(0, deadline - now) : null,
     answerCount: current.buzzes.length,
-    crowd: crowdView(state.crowd, state.phase),
-    // Crowd answer-along closes with the teams' answers, before anything is read out.
-    answersOpen: state.phase === "preview" || state.phase === "open",
+    crowd: crowdView(state.crowd),
+    predictionsOpen: predictionsOpen(state),
     lockInPoints: question ? lockInPoints(question) : 0,
     music: musicView(state),
     final: state.phase === "final" ? finalResults(state) : null,

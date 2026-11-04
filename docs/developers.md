@@ -66,7 +66,7 @@ The stages of a question, and which key moves each one on:
 | `game.js` | All game rules: teams, phases, sealing answers, reading them out, judging, scoring, host fixes, music settings, and upgrading old saves. |
 | `turns.js` | The reading order. Pure, and worked out fresh every time. |
 | `scoring.js` | Points, the quarter share, answer clocks, automatic answer checks, and the partial share for "pick all that apply" questions. |
-| `crowd.js` | The audience: nicknames, predictions, answer-along and the cheer meter. Nothing is scored; phones are only told whether they were right. |
+| `crowd.js` | The audience: nicknames, one prediction per phone of which side wins the game, and the cheer meter. Nothing is scored. |
 | `views.js` | The public, team and admin views, and the final results (standings and awards). Secrets stop here. |
 | `store.js` | Checks question files and saves the game and uploaded pictures safely (write a temporary file, then rename). |
 | `music.js` | Reads and checks YouTube links. |
@@ -88,12 +88,12 @@ The stages of a question, and which key moves each one on:
 | `team:rejoin` | Team page | Get back in with a rejoin code (one try a second per connection). |
 | `team:buzz` | Team page | Lock in the picked answer. |
 | `display:join` | Projector and phones | Receive the public view and the cheer meter. |
-| `crowd:join`, `crowd:predict`, `crowd:pick`, `crowd:cheer` | Phones | Crowd play. Cheers are limited to one every 150 ms. |
+| `crowd:join`, `crowd:predict`, `crowd:cheer` | Phones | Crowd play. Predictions are accepted until the first question's answers open (`predictionsOpen()` in `game.js`). Cheers are limited to one every 150 ms. |
 | `music:status` | Projector | Tells the host page a video could not play. |
 | `admin:auth` | Host page | Prove the admin key. |
 | `admin:action` | Host page | `show`, `open`, `close`, `next`, `judge`, `reveal`, `results`, `markAnswer`, `adjust`, `kick`, `toggleRegistration`, `loadQuestions`, `reset`, `undo`, `export` and `music`. |
 | `state` | Server | The view for that screen, sent after every change. |
-| `cheer`, `crowd:me` | Server | The cheer meter (every 250 ms) and each phone's own picks and whether they were right. |
+| `cheer`, `crowd:me` | Server | The cheer meter (every 250 ms) and each phone's own prediction, and at the final results whether it was right. |
 | `team:kicked`, `game:reset` | Server | Tell pages to forget their team or crowd identity. |
 
 ## Web requests
@@ -115,7 +115,7 @@ A multiple choice question's `answer` is either one choice number or a list of t
 - **One number:** teams pick one choice. Right or wrong.
 - **A list ("pick all that apply"):** teams lock in a sorted list of choices. `rightShare()` in `scoring.js` gives the share of the right choices found, or 0 if any picked choice is wrong. A share of 1 is a normal right answer. Between 0 and 1 is **partly right**: `buzz()` stores it as `partial` on the sealed answer. It is read out like a wrong answer (the question goes on) but does not count as wrong in the stats. When the question ends, `settleLockIns()` pays `partialPoints()`: the "also right" points times the share.
 
-Views send `question.multiple: true` so the pages allow several picks; they never say which choices are right before the reveal. The crowd still picks one choice; any right one scores.
+Views send `question.multiple: true` so the pages allow several picks; they never say which choices are right before the reveal.
 
 ## Run it on your computer
 

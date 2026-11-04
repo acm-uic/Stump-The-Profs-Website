@@ -94,18 +94,11 @@ Anyone can play along on a phone. Open the home page, tap **Display**, type a ni
 
 ![The phone view](images/phone.png)
 
-For every question:
+- **Predict who wins tonight:** tap **Students** or **Profs**. You get one prediction for the whole game. You can change it until the host opens answers on the first question; then it locks. If you join later, you can still watch and cheer. The projector shows how the crowd is leaning.
+- **Cheer** at any time with the **Go Students!** and **Go Profs!** buttons. The cheer meter on the projector shows which side is loudest right now; it fades when people stop.
+- **Follow along:** your phone shows each question, the timer, the answers as they are read out, and the scores.
 
-1. **Predict who gets it** when the question appears: **Students**, **Profs** or **Nobody**. You can change your mind until answers open.
-2. **Answer along** while the teams are answering (multiple choice and true/false only). Tap one answer. You cannot change it. On **Pick all that apply** questions you still tap one; any of the right answers counts. It closes when the teams' answers close.
-3. **Watch the answers** being read out on the projector or your phone.
-4. **See how you did.** After the answer is shown, the box says "Prediction right!", "Answer right!" or that you missed.
-
-At any time:
-
-- **Cheer** with the **Go Students!** and **Go Profs!** buttons. The cheer meter on the projector shows which side is loudest right now; it fades when people stop.
-
-Playing along is just for fun: the phone tells you whether you were right, but the audience does not score points. Only the players compete.
+It is just for fun: the audience does not score points. Only the players compete. At the final results your phone says "You called it!" or "Not this time."
 
 The phone remembers you. If the page closes, open it again and you are back in. If the host resets the game, everyone joins again.
 

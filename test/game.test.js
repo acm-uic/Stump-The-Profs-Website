@@ -3,8 +3,8 @@ import assert from "node:assert/strict";
 import {
   createGame, registerTeam, rejoinTeam, showQuestion, openBuzzers, buzz, closeAnswers, nextAnswer, judge, reveal,
   upNext, markAnswer, adjustScore, kickTeam, toggleRegistration, replaceQuestions, setMusic, upgradeState,
+  predictionsOpen,
 } from "../game.js";
-import { joinCrowd, predict, pick } from "../crowd.js";
 
 const QUESTIONS = [
   { id: "q1", type: "free", prompt: "Free?", answer: "yes", accept: ["yep"] },
@@ -295,25 +295,25 @@ test("show can jump to a question, but not past the end", () => {
   assert.equal(showQuestion(state, 99).ok, false);
 });
 
-test("ending a question settles the crowd, and showing the next one clears it", () => {
-  const { state, a, b } = gameWithTeams();
-  const crowd = state.crowd;
-  const ana = joinCrowd(crowd, "Ana").spectator.id;
-  const ben = joinCrowd(crowd, "Ben").spectator.id;
-  showQuestion(state, 1); // mc, answer 1
-  predict(crowd, ana, "prof", state.phase);
-  predict(crowd, ben, "student", state.phase);
-  openBuzzers(state, 1000);
-  pick(crowd, ana, 1, state.phase, state.questions[1]);
-  buzz(state, a.id, 0, 1100); // student wrong
-  buzz(state, b.id, 1, 1200); // prof right
-  nextAnswer(state);
-  nextAnswer(state);
-  assert.equal(b.score, 200);
-  assert.deepEqual(crowd.lastResult.rightPredictors, [ana]);
-  assert.deepEqual(crowd.lastResult.rightPickers, [ana]);
+test("crowd predictions are open until the first question's answers open, and never reopen", () => {
+  const { state } = gameWithTeams();
+  assert.equal(predictionsOpen(state), true); // lobby
   showQuestion(state);
-  assert.deepEqual(crowd.predictions, {});
+  assert.equal(predictionsOpen(state), true); // first question on screen, answers not open
+  openBuzzers(state, 1000);
+  assert.equal(predictionsOpen(state), false);
+  reveal(state);
+  showQuestion(state);
+  assert.equal(predictionsOpen(state), false); // second question
+});
+
+test("an old save with per-question predictions and answer-along picks is cleaned up", () => {
+  const { state } = gameWithTeams();
+  state.crowd.picks = { s1: 1 };
+  state.crowd.lastResult = {};
+  state.crowd.predictions = { s1: "none" };
+  upgradeState(state);
+  assert.deepEqual(state.crowd, { spectators: {}, nextId: 1, predictions: {} });
 });
 
 // ---- Music ----------------------------------------------------------------------

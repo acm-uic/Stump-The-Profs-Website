@@ -45,7 +45,7 @@ After the last question, the host shows the final results on every screen: the w
 | `/` | Everyone: links to the team and audience pages. |
 | `/player.html` | Each team's laptop: answer pad, buzzer, score and stats. |
 | `/display.html?projector` | The projector: question, timer, answers, scores and the crowd. Also plays the music. |
-| `/display.html` | The audience's phones: predict, answer along and cheer. |
+| `/display.html` | The audience's phones: follow along, predict the winning side and cheer. |
 | `/admin.html` | The host. Needs the admin key. |
 
 ## Try it on your computer

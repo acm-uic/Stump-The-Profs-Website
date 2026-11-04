@@ -11,7 +11,7 @@ Everything happens at **https://stumptheprofs.acmuic.org**. Each person opens a 
 | The host | `/admin.html` | Runs the game: shows questions, reads answers, fixes scores. Needs the admin key. |
 | The projector | `/display.html?projector` | The big screen: question, timer, answers, scores, crowd. |
 | Each team | `/player.html` | The team's buzzer, answer pad, score and stats. One laptop per team. |
-| The audience | The home page, then **Display** | Play along on a phone: predict, answer, cheer. |
+| The audience | The home page, then **Display** | Follow along on a phone: predict the winning side, cheer. |
 
 ![The home page](images/home.png)
 
@@ -132,7 +132,7 @@ You can press **F** after any question to end early. If you pressed it by mistak
 
 ## What teams and the crowd do
 
-Teams and the audience have their own one-page guide: [How to play](players.md). It covers the team loop, what the big button means, the team shortcuts, and how the crowd joins, predicts, answers along and cheers. Print it, share the link, or keep it open to answer questions.
+Teams and the audience have their own one-page guide: [How to play](players.md). It covers the team loop, what the big button means, the team shortcuts, and how the crowd joins, predicts the winner and cheers. Print it, share the link, or keep it open to answer questions.
 
 ## Read this to the room
 
@@ -140,7 +140,7 @@ Before the first question, the host can read this out:
 
 > Teams: when a question appears, pick your answer on your laptop. When answers open, press BUZZ to lock it in. Once it is locked, nobody can see it but me, and you cannot change it. The faster you buzz, the earlier you are read. Stay quiet until answers close. When your screen says YOUR TURN, say your answer out loud. The first right answer gets full points; every other right answer gets a quarter. If a question says "Pick all that apply", select every answer you think is right: all of them scores most, some of them scores a little, and any wrong pick scores nothing. Wrong answers cost nothing, so always lock something in.
 >
-> Everyone else: open stumptheprofs.acmuic.org on your phone, tap Display, and join with a nickname. Predict who gets each question, answer along, and cheer for your side.
+> Everyone else: open stumptheprofs.acmuic.org on your phone, tap Display, and join with a nickname. Predict which side wins tonight before the first question starts, and cheer for your side.
 
 ## When something goes wrong
 

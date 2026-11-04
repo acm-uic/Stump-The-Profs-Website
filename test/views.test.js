@@ -162,8 +162,8 @@ test("the team view has exactly the agreed fields, and a history line per finish
 
   const view = teamView(state, b.id, 3000);
   assert.deepEqual(Object.keys(view).sort(), [
-    "answerCount", "answerRemainingMs", "answerTotalMs", "answersOpen", "buzzer", "buzzes", "canAnswer", "crowd", "final", "floorTeam",
-    "history", "lockInPoints", "me", "music", "myAnswer", "phase", "place", "question",
+    "answerCount", "answerRemainingMs", "answerTotalMs", "buzzer", "buzzes", "canAnswer", "crowd", "final", "floorTeam",
+    "history", "lockInPoints", "me", "music", "myAnswer", "phase", "place", "predictionsOpen", "question",
     "questionNumber", "questionTotal", "readOut", "result", "sides", "stats", "teams", "upNext",
   ]);
   assert.deepEqual(view.history, [
@@ -195,6 +195,7 @@ test("final results: the winning side, every team ranked, and awards", () => {
 
   const view = publicView(state, 2000);
   assert.equal(view.question, null);
+  assert.deepEqual(view.readOut, []); // the last question's answers are cleared away
   assert.equal(view.final.winnerSide, "student"); // 200 against 50
   assert.deepEqual(view.final.standings.map((t) => [t.name, t.score, t.rank]), [["A", 200, 1], ["C", 50, 2], ["B", 0, 3]]);
   assert.deepEqual(view.final.awards.map((w) => [w.title, w.teams.map((t) => t.name), w.value]), [
@@ -216,4 +217,17 @@ test("final results: equal side totals are a tie", () => {
   showResults(state);
   assert.equal(publicView(state, 0).final.winnerSide, null);
   assert.deepEqual(publicView(state, 0).final.awards, []);
+});
+
+test("final results say how many in the crowd called the winning side", () => {
+  const state = createGame([{ id: "q1", type: "tf", prompt: "?", answer: true }]);
+  const a = registerTeam(state, { name: "A", side: "student" }).team;
+  registerTeam(state, { name: "B", side: "prof" });
+  state.crowd.predictions = { s1: "student", s2: "prof", s3: "student" };
+  showQuestion(state);
+  openBuzzers(state, 0);
+  buzz(state, a.id, true, 100);
+  nextAnswer(state); // A right: students win
+  showResults(state);
+  assert.deepEqual(publicView(state, 0).final.crowd, { called: 2, predicted: 3 });
 });

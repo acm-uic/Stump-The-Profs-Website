@@ -1,6 +1,6 @@
 import {
   connect, PHASE_LABELS, answerText, renderQuestion, renderTeamList, startCountdown, upNextText, formatMs,
-  letter, ordinal, choiceText, lockedInText, renderReadOut, SIDE_NAMES,
+  ordinal, choiceText, lockedInText, renderReadOut, SIDE_NAMES,
 } from "/common.js";
 import { startMusic } from "/music.js";
 
@@ -117,58 +117,25 @@ for (const button of document.querySelectorAll("[data-cheer]")) {
   });
 }
 
-// The answer buttons are rebuilt only when the question changes.
-let pickBuiltFor = null;
-function buildPickButtons(view) {
-  if (pickBuiltFor === view.questionNumber) return;
-  pickBuiltFor = view.questionNumber;
-  const q = view.question;
-  const options = q?.type === "mc" ? q.choices.map((c, i) => [letter(i), i])
-    : q?.type === "tf" ? [["True", true], ["False", false]]
-    : [];
-  $("#pick-row").replaceChildren(...options.map(([text, value]) => {
-    const button = document.createElement("button");
-    button.textContent = text;
-    button.dataset.value = JSON.stringify(value);
-    button.addEventListener("click", () => crowdSend("crowd:pick", { choice: value }));
-    return button;
-  }));
-}
-
 function renderCrowdPanel() {
   if (isProjector || !lastView || !me) return;
   const view = lastView;
   $("#crowd-me").textContent = `Playing as ${me.name}`;
 
-  const hasQuestion = Boolean(view.question);
-  $("#predict-box").hidden = !hasQuestion;
+  // One prediction for the whole game, open until the first question starts.
   for (const button of document.querySelectorAll("#predict-row button")) {
     button.classList.toggle("chosen", me.prediction === button.dataset.side);
-    button.disabled = view.phase !== "preview";
+    button.disabled = !view.predictionsOpen;
   }
-
-  const canPick = hasQuestion && (view.question.type === "mc" || view.question.type === "tf");
-  $("#pick-box").hidden = !canPick;
-  if (canPick) {
-    // The crowd taps one choice even when several are right; any right one scores.
-    $("#pick-label").textContent = view.question.multiple ? "Your answer (any one you think is right):" : "Your answer:";
-    buildPickButtons(view);
-    for (const button of document.querySelectorAll("#pick-row button")) {
-      const value = JSON.parse(button.dataset.value);
-      button.classList.toggle("chosen", me.pick === value);
-      button.disabled = !view.answersOpen || me.pick !== null;
-    }
-  }
-
-  const notes = [];
-  if (view.phase === "preview" && !me.prediction) notes.push("Predict before the buzzers open!");
-  if (view.phase === "revealed") {
-    if (me.predictionRight) notes.push("Prediction right!");
-    else if (me.prediction) notes.push("Prediction missed.");
-    if (me.pickRight) notes.push("Answer right!");
-    else if (me.pick !== null) notes.push("Answer missed.");
-  }
-  $("#crowd-feedback").textContent = notes.join(" ");
+  const side = SIDE_NAMES[me.prediction];
+  $("#crowd-feedback").textContent = view.final
+    ? me.predictionRight ? "You called it!"
+      : !me.prediction ? ""
+      : view.final.winnerSide ? "Not this time."
+      : "It's a tie, so nobody called it."
+    : view.predictionsOpen
+      ? me.prediction ? `You picked ${side}. You can change it until the first question starts.` : "Pick a side before the first question starts!"
+      : me.prediction ? `Locked in: ${side}.` : "Predictions closed when the first question started.";
 }
 
 socket.on("crowd:me", (data) => {
@@ -188,26 +155,13 @@ socket.on("cheer", ({ student, prof }) => {
 function renderCrowdBoard(view) {
   const { crowd } = view;
   const counts = crowd.predictionCounts;
-  const total = counts.student + counts.prof + counts.none;
-  const pct = (n) => (total === 0 ? 0 : (n / total) * 100);
-  $("#predict-title").textContent = `Crowd predictions (${crowd.count} playing)`;
-  $("#pred-s").style.width = `${pct(counts.student)}%`;
-  $("#pred-p").style.width = `${pct(counts.prof)}%`;
-  $("#pred-n").style.width = `${pct(counts.none)}%`;
+  const total = counts.student + counts.prof;
+  const share = total === 0 ? 50 : (counts.student / total) * 100;
+  $("#predict-title").textContent = `Who the crowd thinks wins (${crowd.count} playing)`;
+  $("#pred-s").style.width = `${share}%`;
+  $("#pred-p").style.width = `${100 - share}%`;
   $("#pred-s-label").textContent = `Students ${counts.student}`;
-  $("#pred-n-label").textContent = counts.none ? `Nobody ${counts.none}` : "";
   $("#pred-p-label").textContent = `Profs ${counts.prof}`;
-
-  // After the reveal, show how the crowd answered next to each choice.
-  if (crowd.pickSplit) {
-    const items = document.querySelectorAll("#question .choices li");
-    crowd.pickSplit.forEach(({ percent }, i) => {
-      const split = document.createElement("span");
-      split.className = "split";
-      split.textContent = `${percent}%`;
-      items[i]?.append(split);
-    });
-  }
 }
 
 // The end of the night: the winning side, every team ranked, and the awards.
@@ -222,6 +176,10 @@ function renderFinal(view) {
   if (!final) return;
   $("#final-winner").textContent = final.winnerSide ? `${SIDE_NAMES[final.winnerSide]} win!` : "It's a tie!";
   $("#final-winner").dataset.side = final.winnerSide ?? "";
+  const { called, predicted } = final.crowd;
+  $("#final-crowd").textContent = predicted === 0 ? ""
+    : final.winnerSide ? `${called} of ${predicted} in the crowd called it.`
+    : "Nobody in the crowd predicted a tie.";
   $("#standings").replaceChildren(...final.standings.map((team) => {
     const li = document.createElement("li");
     if (team.rank <= 3) li.className = `podium p${team.rank}`;

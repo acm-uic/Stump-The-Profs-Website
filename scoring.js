@@ -26,11 +26,6 @@ export function partialPoints(question, share) {
   return Math.round(lockInPoints(question) * share);
 }
 
-// Is one choice among the right ones? Used for the crowd, who always pick one choice.
-export function isRightChoice(question, choice) {
-  return isMultiAnswer(question) ? question.answer.includes(choice) : choice === question.answer;
-}
-
 export function answerSeconds(question) {
   return question.seconds ?? ANSWER_SECONDS[question.type];
 }
